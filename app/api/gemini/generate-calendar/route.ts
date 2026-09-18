@@ -17,6 +17,7 @@ import {
   validateCalendarAgainstFunnelStrategy,
   normalizeCalendarToFunnelDistribution,
   resolveFunnelPlanningInput,
+  resolveCoreCampaignTopic,
 } from "@/lib/funnel-strategy";
 import { resolveGeminiApiKey, missingGeminiApiKeyMessage } from "@/lib/gemini-api-key";
 
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
       totalPosts?: number;
     };
     const {
-      coreTopic = "Brand Strategy Launch Campaign",
+      coreTopic,
       startDate = new Date().toISOString().split('T')[0],
       skipDays = [],
       gender = "Both",
@@ -113,6 +114,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Resolve authoritative core campaign topic strictly from user input or project context
+    let resolvedCoreTopic: string;
+    try {
+      resolvedCoreTopic = resolveCoreCampaignTopic(
+        coreTopic,
+        context.strategy_context?.core_message
+      );
+    } catch (e: any) {
+      return NextResponse.json(
+        {
+          error: "Core campaign topic tidak tersedia dari project strategy context.",
+          isBlocked: true,
+        },
+        { status: 400 }
+      );
+    }
+
     // Single source of authority for total posts and funnel strategy via production helper
     const planningInput = resolveFunnelPlanningInput({
       hasUserFunnelOverride,
@@ -124,7 +142,7 @@ export async function POST(req: NextRequest) {
     // Establish authoritative FunnelStrategy for the active project strictly on the server
     const activeFunnelStrategy = buildFunnelStrategyFromContext(context, {
       totalPosts: planningInput.totalPosts,
-      campaignGoal: coreTopic,
+      campaignGoal: resolvedCoreTopic,
       userOverrides: planningInput.explicitOverrides,
     });
 
@@ -182,7 +200,7 @@ Your task is to synthesize a high-converting, strategy-first Content Calendar Ma
 ${buildFunnelStrategyPromptBlock(activeFunnelStrategy)}
 
 ### CAMPAIGN EXECUTION PARAMETERS:
-- Core Topic / Focus: ${coreTopic}
+- Core Topic / Focus: ${resolvedCoreTopic}
 - Start Date: ${startDate}
 - Skip Days of Week: ${skipDays.join(', ') || 'None'}
 - Target Channels: ${channels.join(', ')}

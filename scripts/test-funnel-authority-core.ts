@@ -10,6 +10,7 @@ import {
   normalizeCalendarToFunnelDistribution,
   resolveFunnelPlanningInput,
   validateRegenerateProjectIdentity,
+  resolveCoreCampaignTopic,
 } from '../lib/funnel-strategy';
 import {
   saveProjectFunnelStrategy,
@@ -108,6 +109,51 @@ assert(
 assert(
   routeContent.includes('Array.isArray(selectedCTAs) && selectedCTAs.length > 0'),
   'Test D6: Primary CTAs Allowed hanya di-render saat user explicitly memberikan preferences'
+);
+
+// Test D7: Tidak ada generic strategic fallback "Brand Strategy Launch Campaign" pada generate-calendar/route.ts
+assert(
+  !routeContent.includes('"Brand Strategy Launch Campaign"'),
+  'Test D7: Generic strategic fallback "Brand Strategy Launch Campaign" berhasil dihapus dari generate-calendar/route.ts'
+);
+
+// Test D8: Route mengimpor dan menggunakan resolveCoreCampaignTopic
+assert(
+  routeContent.includes('resolveCoreCampaignTopic') && routeContent.includes('resolvedCoreTopic'),
+  'Test D8: generate-calendar/route.ts mengadopsi resolveCoreCampaignTopic untuk single authoritative topic'
+);
+
+// Test C1: Explicit user coreTopic prioritizes over context core_message
+const topicC1 = resolveCoreCampaignTopic('Campaign Ramadan', 'Pesan utama project');
+assert(
+  topicC1 === 'Campaign Ramadan',
+  'Test C1: Explicit coreTopic ("Campaign Ramadan") overrides context core_message'
+);
+
+// Test C2: Undefined explicit coreTopic falls back cleanly to context core_message
+const topicC2 = resolveCoreCampaignTopic(undefined, 'Pesan utama project');
+assert(
+  topicC2 === 'Pesan utama project',
+  'Test C2: Undefined explicit coreTopic resolves cleanly to context core_message'
+);
+
+// Test C3: Whitespace-only explicit coreTopic falls back cleanly to context core_message
+const topicC3 = resolveCoreCampaignTopic('   ', 'Pesan utama project');
+assert(
+  topicC3 === 'Pesan utama project',
+  'Test C3: Whitespace-only explicit coreTopic resolves to context core_message'
+);
+
+// Test C4: Both explicit coreTopic and context core_message missing throws error (fail closed)
+let c4Thrown = false;
+try {
+  resolveCoreCampaignTopic(undefined, '');
+} catch (e: any) {
+  c4Thrown = true;
+}
+assert(
+  c4Thrown,
+  'Test C4: resolveCoreCampaignTopic throws error when both explicit coreTopic and context core_message are empty (fail closed)'
 );
 
 // -------------------------------------------------------------

@@ -669,3 +669,25 @@ export function validateRegenerateProjectIdentity(
   return { isValid: true };
 }
 
+/**
+ * Resolves the authoritative core campaign topic.
+ * Authority precedence:
+ * 1. Explicit user coreTopic (if non-empty string)
+ * 2. Project context core_message (if non-empty string)
+ * Throws an error if neither is available (fail-closed, no generic strategic fallbacks allowed).
+ */
+export function resolveCoreCampaignTopic(
+  explicitCoreTopic?: string | null,
+  contextCoreMessage?: string | null
+): string {
+  if (typeof explicitCoreTopic === 'string' && explicitCoreTopic.trim() !== '') {
+    return explicitCoreTopic.trim();
+  }
+
+  if (typeof contextCoreMessage === 'string' && contextCoreMessage.trim() !== '') {
+    return contextCoreMessage.trim();
+  }
+
+  throw new Error('Core campaign topic tidak tersedia dari project strategy context.');
+}
+
