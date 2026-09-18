@@ -691,3 +691,18 @@ export function resolveCoreCampaignTopic(
   throw new Error('Core campaign topic tidak tersedia dari project strategy context.');
 }
 
+/**
+ * Resolves the explicit coreTopic to send from the client.
+ * Returns the trimmed explicit topic only if hasUserCoreTopicOverride is true and explicit topic is non-empty.
+ * Otherwise returns undefined so the server resolves from project context (strategy_context.core_message).
+ */
+export function resolveClientCoreTopicRequest(
+  hasUserCoreTopicOverride: boolean,
+  coreTopic?: string | null
+): string | undefined {
+  if (hasUserCoreTopicOverride && typeof coreTopic === 'string' && coreTopic.trim() !== '') {
+    return coreTopic.trim();
+  }
+  return undefined;
+}
+

@@ -11,6 +11,7 @@ import {
   resolveFunnelPlanningInput,
   validateRegenerateProjectIdentity,
   resolveCoreCampaignTopic,
+  resolveClientCoreTopicRequest,
 } from '../lib/funnel-strategy';
 import {
   saveProjectFunnelStrategy,
@@ -154,6 +155,39 @@ try {
 assert(
   c4Thrown,
   'Test C4: resolveCoreCampaignTopic throws error when both explicit coreTopic and context core_message are empty (fail closed)'
+);
+
+// Test CL1: HomePageClient does not use generic strategic fallback "Peluncuran Produk Strategy"
+assert(
+  !homePageContent.includes("'Peluncuran Produk Strategy'"),
+  'Test CL1: HomePageClient tidak lagi memiliki generic fallback Peluncuran Produk Strategy'
+);
+
+// Test CL2: HomePageClient does not use brand_name as strategic coreTopic fallback for generate request
+assert(
+  !homePageContent.includes('coreTopic || sharedContext?.brand_context?.brand_name'),
+  'Test CL2: HomePageClient tidak lagi memakai brand_name sebagai fallback coreTopic request'
+);
+
+// Test CL3: Client helper contract: hasUserCoreTopicOverride = false -> returns undefined
+const clientTopicNoOverride = resolveClientCoreTopicRequest(false, 'Topic Not Overridden');
+assert(
+  clientTopicNoOverride === undefined,
+  'Test CL3: resolveClientCoreTopicRequest returns undefined when hasUserCoreTopicOverride is false'
+);
+
+// Test CL4: Client helper contract: hasUserCoreTopicOverride = true -> returns explicit trimmed user topic
+const clientTopicWithOverride = resolveClientCoreTopicRequest(true, '  Campaign Diskon Spesial  ');
+assert(
+  clientTopicWithOverride === 'Campaign Diskon Spesial',
+  'Test CL4: resolveClientCoreTopicRequest returns trimmed user topic when hasUserCoreTopicOverride is true'
+);
+
+// Test CL5: Client helper contract: hasUserCoreTopicOverride = true with empty/whitespace string returns undefined
+const clientTopicWhitespace = resolveClientCoreTopicRequest(true, '   ');
+assert(
+  clientTopicWhitespace === undefined,
+  'Test CL5: resolveClientCoreTopicRequest returns undefined when explicit user topic is whitespace-only'
 );
 
 // -------------------------------------------------------------

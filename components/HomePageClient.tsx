@@ -28,7 +28,7 @@ import {
   clearGlobalTransientState,
   saveProjectSelectedItem
 } from '@/lib/storage';
-import { buildFunnelStrategyFromContext } from '@/lib/funnel-strategy';
+import { buildFunnelStrategyFromContext, resolveClientCoreTopicRequest } from '@/lib/funnel-strategy';
 import { ActiveStrategyBadge } from '@/components/ActiveStrategyBadge';
 import { GeminiApiKeyControl } from '@/components/GeminiApiKeyControl';
 import { GeminiApiKeyOnboardingCard } from '@/components/GeminiApiKeyOnboardingCard';
@@ -559,7 +559,7 @@ export default function HomePageClient() {
         headers: buildGeminiRequestHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           projectId: requestProjectId,
-          coreTopic: coreTopic || sharedContext?.brand_context?.brand_name || 'Peluncuran Produk Strategy',
+          coreTopic: resolveClientCoreTopicRequest(hasUserCoreTopicOverride, coreTopic),
           startDate,
           skipDays,
           gender,
