@@ -23,6 +23,16 @@ import {
 } from '@/lib/production-context';
 import { resolveProductionContentItemTarget } from '@/lib/production-engine-context';
 import { FunnelStrategy } from '@/lib/funnel-strategy';
+import {
+  ImageProductionCandidate,
+  CarouselProductionCandidate,
+  VideoProductionCandidate,
+  buildImageProductionCandidate,
+  buildCarouselProductionCandidate,
+  buildVideoProductionCandidate,
+  buildCanonicalVideoScenePlan,
+} from '@/lib/production-candidate';
+import { CarouselSlideProductionPlan } from '@/lib/production-contract';
 import { 
   buildFunnelPromptBlock, 
   getFunnelRules, 
@@ -119,6 +129,7 @@ interface ImageAngle {
   strategyBrief?: StrategyBrief;
   messageAlignmentCheck?: MessageAlignmentCheck;
   finalPrompt: string;
+  productionCandidate?: ImageProductionCandidate;
 }
 
 interface ImageAnglesPackage {
@@ -193,6 +204,7 @@ interface CarouselPlan {
   captionForPost?: string;
   captionInstruction?: string;
   slides: CarouselSlide[];
+  productionCandidate?: CarouselProductionCandidate;
 }
 
 interface VideoScript {
@@ -215,6 +227,7 @@ interface VideoStyle {
   visualPlan: string;
   captionForPost?: string;
   captionInstruction?: string;
+  productionCandidate?: VideoProductionCandidate;
 }
 
 interface UgcPack {
@@ -1443,6 +1456,22 @@ Negative Prompt: hard selling ads, cluttered poster, too much text, generic stoc
     pesanVisual: String(rawBrief.pesanVisual || rawBrief.pesan_visual || visualObjective).trim(),
   };
 
+  const productionCandidate = buildImageProductionCandidate({
+    candidate_id: id,
+    visualObjective,
+    scene: `${action} ${expression}`.trim(),
+    subject,
+    composition,
+    environment,
+    lighting,
+    camera,
+    visualStyle,
+    textOverlay,
+    branding: '',
+    negativeConstraints: 'hard selling ads, cluttered poster, too much text, generic stock photo, unreadable text, distorted face, extra fingers, corporate cliche, overdesigned graphic.',
+    finalPrompt,
+  });
+
   return {
     id,
     name,
@@ -1461,6 +1490,7 @@ Negative Prompt: hard selling ads, cluttered poster, too much text, generic stoc
     strategyBrief,
     messageAlignmentCheck,
     finalPrompt,
+    productionCandidate,
   };
 };
 
@@ -2352,6 +2382,42 @@ Image/Illustration Direction: ${visualFormat === 'infographic' ? 'Clean modern e
   }
   const captionInstruction = String(targetObj.captionInstruction || targetObj.caption_instruction || defaultCaptionInstruction).trim() || defaultCaptionInstruction;
 
+  const slidePlans: CarouselSlideProductionPlan[] = normalizedSlides.map((slide) => ({
+    slide_number: slide.slide,
+    role: slide.role,
+    headline: slide.headline,
+    body: slide.body,
+    visual_direction: slide.visual_intent,
+    layout_direction: slide.visual_production?.layout || slide.text_zone || 'Format carousel Instagram 4:5 vertical',
+  }));
+
+  const slidePrompts = normalizedSlides.map((slide) => ({
+    slide_number: slide.slide,
+    prompt: slide.slide_image_prompt,
+  }));
+
+  const coverDirection =
+    normalizedSlides[0]?.visual_intent ||
+    normalizedSlides[0]?.visual_production?.composition ||
+    'Visual editorial cover carousel';
+
+  const carouselCandidate = buildCarouselProductionCandidate({
+    candidate_id: 'carousel_plan',
+    objective: rawGoal,
+    slide_count: normalizedSlides.length,
+    cover_direction: coverDirection,
+    slides: slidePlans,
+    visual_continuity: visualSystemNotes,
+    branding: '',
+    negative_constraints:
+      normalizedSlides[0]?.visual_production?.negative_prompt ||
+      'hard selling ads, cluttered poster, blurry text',
+    final_prompts: {
+      master_prompt: visualSystemNotes,
+      slides: slidePrompts,
+    },
+  });
+
   const canonicalPlan: CarouselPlan = {
     content_goal: rawGoal,
     funnel_stage: funnelStage,
@@ -2372,6 +2438,7 @@ Image/Illustration Direction: ${visualFormat === 'infographic' ? 'Clean modern e
     },
     visual_system_notes: visualSystemNotes,
     slides: normalizedSlides,
+    productionCandidate: carouselCandidate,
   };
 
   return JSON.stringify(canonicalPlan, null, 2);
@@ -2804,6 +2871,19 @@ function validateAndNormalizeVideoStyles(
 
       const captionInstruction = String(v.captionInstruction || v.caption_instruction || defaultCaptionInstruction).trim() || defaultCaptionInstruction;
 
+      const scenes = buildCanonicalVideoScenePlan(funnelStage, script);
+      const productionCandidate = buildVideoProductionCandidate({
+        candidate_id: `video_style_${id}`,
+        production_mode: 'ugc_video',
+        objective: activeItem?.tujuan || funnelRules.goal || 'Video produksi terstruktur',
+        format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
+        hook: script.hook,
+        scenes,
+        motion_direction: pacingStyle,
+        audio_direction: audioDirection,
+        final_prompt: videoPrompt || `Video Production Plan for ${name} (${funnelStage})`,
+      });
+
       return {
         id,
         name,
@@ -2816,6 +2896,7 @@ function validateAndNormalizeVideoStyles(
         visualPlan,
         captionForPost,
         captionInstruction,
+        productionCandidate,
       };
     });
 

@@ -54,6 +54,17 @@ import {
   ProductionAssetInput,
   ProductionPackageMetadata,
 } from '../lib/production-engine';
+import {
+  ImageProductionCandidate,
+  CarouselProductionCandidate,
+  VideoProductionCandidate,
+  ProductionCandidate,
+  validateProductionCandidate,
+  buildImageProductionCandidate,
+  buildCarouselProductionCandidate,
+  buildVideoProductionCandidate,
+  buildCanonicalVideoScenePlan,
+} from '../lib/production-candidate';
 
 const projectRoot = process.cwd();
 const errors: string[] = [];
@@ -2266,6 +2277,247 @@ assert(
   p3b21Res.package?.content_item_id === p3bEngineCtx.content_item.content_item_id &&
   p3b21Res.package?.funnel_stage === p3bEngineCtx.canonical_funnel_stage,
   'Test P3B-22: Production package fields strictly reflect authoritative context values'
+);
+
+// ============================================================================
+// PHASE 3C-A: CANONICAL PRODUCTION CANDIDATES REGRESSION TESTS
+// ============================================================================
+
+// P3C-A-01: Valid Image Production Candidate
+const validImageCand: ImageProductionCandidate = {
+  candidate_type: 'image',
+  candidate_id: 'img_cand_001',
+  production_details: {
+    objective: 'Membangun awareness relatable problem',
+    scene: 'Kreator sedang meninjau draf caption',
+    subject: 'Seorang profesional muda usia 26-28 tahun',
+    composition: 'Subjek di kanan, ruang negatif di kiri atas 4:5',
+    environment: 'Meja kerja kayu dekat jendela',
+    lighting: 'Cahaya alami lembut',
+    camera_direction: '50mm f/2.0 eye level',
+    visual_style: 'Clean editorial Instagram photography',
+    text_overlay: 'Menghadapi Kendala Yang Sama?',
+    branding: '',
+    negative_constraints: 'hard selling, blurry text',
+  },
+  final_prompt: 'Buatkan saya image untuk konten Instagram...',
+};
+const p3ca01Val = validateProductionCandidate(validImageCand);
+assert(
+  p3ca01Val.isValid && p3ca01Val.error === undefined,
+  'Test P3C-A-01: Valid ImageProductionCandidate passes validation cleanly'
+);
+
+// P3C-A-02: Valid Carousel Production Candidate
+const validCarouselCand: CarouselProductionCandidate = {
+  candidate_type: 'carousel',
+  candidate_id: 'carousel_cand_001',
+  production_details: {
+    objective: 'Edukasi alur kerja terstruktur',
+    slide_count: 5,
+    cover_direction: 'Visual editorial cover carousel',
+    slides: [
+      { slide_number: 1, role: 'hook', headline: 'Hook 1', visual_direction: 'Vis Dir 1', layout_direction: '4:5 Top' },
+      { slide_number: 2, role: 'problem', headline: 'Problem 2', visual_direction: 'Vis Dir 2', layout_direction: '4:5 Split' },
+      { slide_number: 3, role: 'reframe', headline: 'Reframe 3', visual_direction: 'Vis Dir 3', layout_direction: '4:5 Diagram' },
+      { slide_number: 4, role: 'learn', headline: 'Solution 4', visual_direction: 'Vis Dir 4', layout_direction: '4:5 Steps' },
+      { slide_number: 5, role: 'cta', headline: 'CTA 5', visual_direction: 'Vis Dir 5', layout_direction: '4:5 Card' },
+    ],
+    visual_continuity: 'Tema visual konsisten 4:5 vertical editorial',
+    branding: '',
+    negative_constraints: 'hard selling, messy text',
+  },
+  final_prompts: {
+    master_prompt: 'Master visual prompt 4:5',
+    slides: [
+      { slide_number: 1, prompt: 'Prompt Slide 1' },
+      { slide_number: 2, prompt: 'Prompt Slide 2' },
+      { slide_number: 3, prompt: 'Prompt Slide 3' },
+      { slide_number: 4, prompt: 'Prompt Slide 4' },
+      { slide_number: 5, prompt: 'Prompt Slide 5' },
+    ],
+  },
+};
+const p3ca02Val = validateProductionCandidate(validCarouselCand);
+assert(
+  p3ca02Val.isValid && p3ca02Val.error === undefined,
+  'Test P3C-A-02: Valid CarouselProductionCandidate passes validation cleanly'
+);
+
+// P3C-A-03: Valid Video Production Candidate in all modes
+const validVideoScenes = buildCanonicalVideoScenePlan('TOFU', {
+  hook: 'Hook video menarik',
+  masalah: 'Masalah konkret audiens',
+  solusi: 'Solusi terarah',
+  cta: 'Simpan video ini',
+});
+
+const videoModes: Array<'ugc_video' | 'text_motion' | 'asset_product'> = [
+  'ugc_video',
+  'text_motion',
+  'asset_product',
+];
+const videoModeResults = videoModes.map((mode) => {
+  const cand = buildVideoProductionCandidate({
+    candidate_id: `vid_cand_${mode}`,
+    production_mode: mode,
+    objective: 'Video awareness terarah',
+    hook: 'Hook video menarik',
+    scenes: validVideoScenes,
+    final_prompt: `Video Prompt for ${mode}`,
+  });
+  return validateProductionCandidate(cand);
+});
+assert(
+  videoModeResults.every((r) => r.isValid && r.error === undefined),
+  'Test P3C-A-03: Valid VideoProductionCandidate passes validation across ugc_video, text_motion, and asset_product modes'
+);
+
+// P3C-A-04: Image Candidate missing required fields fails validation
+const invalidImageCand = {
+  ...validImageCand,
+  production_details: {
+    ...validImageCand.production_details,
+    subject: '', // Missing required field
+  },
+};
+const p3ca04Val = validateProductionCandidate(invalidImageCand);
+assert(
+  !p3ca04Val.isValid && p3ca04Val.error?.includes('subject'),
+  'Test P3C-A-04: Image candidate with empty required field fails validation fail-closed'
+);
+
+// P3C-A-05: Carousel Candidate slide_count mismatch fails validation
+const mismatchedCountCarousel = {
+  ...validCarouselCand,
+  production_details: {
+    ...validCarouselCand.production_details,
+    slide_count: 6, // Declares 6 but only 5 slides
+  },
+};
+const p3ca05Val = validateProductionCandidate(mismatchedCountCarousel);
+assert(
+  !p3ca05Val.isValid && p3ca05Val.error?.includes('slide_count'),
+  'Test P3C-A-05: Carousel candidate with slide_count mismatch fails validation fail-closed'
+);
+
+// P3C-A-06: Carousel Candidate final_prompts count mismatch fails validation
+const mismatchedPromptsCarousel = {
+  ...validCarouselCand,
+  final_prompts: {
+    ...validCarouselCand.final_prompts,
+    slides: validCarouselCand.final_prompts.slides.slice(0, 3), // Only 3 prompts for 5 slides
+  },
+};
+const p3ca06Val = validateProductionCandidate(mismatchedPromptsCarousel);
+assert(
+  !p3ca06Val.isValid && p3ca06Val.error?.includes('final_prompts.slides count'),
+  'Test P3C-A-06: Carousel candidate with final_prompts slide count mismatch fails validation fail-closed'
+);
+
+// P3C-A-07: Video Candidate with empty scenes or invalid duration fails validation
+const emptyScenesVideo = {
+  candidate_type: 'video',
+  candidate_id: 'vid_empty_scenes',
+  production_mode: 'ugc_video',
+  production_details: {
+    objective: 'Video objective',
+    duration_seconds: 0,
+    format: '9:16 Vertical',
+    hook: 'Hook text',
+    scenes: [],
+    voiceover: 'VO',
+    on_screen_text: 'OST',
+    camera_direction: 'Cam',
+    motion_direction: 'Motion',
+    audio_direction: 'Audio',
+    branding: '',
+    negative_constraints: '',
+  },
+  final_prompt: 'Prompt',
+};
+const p3ca07Val = validateProductionCandidate(emptyScenesVideo);
+assert(
+  !p3ca07Val.isValid && (p3ca07Val.error?.includes('duration') || p3ca07Val.error?.includes('scenes')),
+  'Test P3C-A-07: Video candidate with empty scenes or invalid duration fails validation fail-closed'
+);
+
+// P3C-A-08: Candidate containing forbidden package authority fields fails validation
+const authorityLeakedCand = {
+  ...validImageCand,
+  project_id: 'proj_leaked_001', // Forbidden in candidate layer
+};
+const p3ca08Val = validateProductionCandidate(authorityLeakedCand);
+assert(
+  !p3ca08Val.isValid && p3ca08Val.error?.includes('authoritative package field: project_id'),
+  'Test P3C-A-08: Candidate containing forbidden package authority field fails validation fail-closed'
+);
+
+// P3C-A-09: Image Candidate built via helper conforms to canonical schema
+const builtImageCand = buildImageProductionCandidate({
+  candidate_id: 'A',
+  visualObjective: 'Visual objective test',
+  scene: 'Scene action and expression',
+  subject: 'Subject description',
+  composition: 'Composition description',
+  environment: 'Environment description',
+  lighting: 'Lighting description',
+  camera: '50mm camera',
+  visualStyle: 'Editorial style',
+  textOverlay: 'Headline Overlay',
+  branding: '',
+  negativeConstraints: 'No ads',
+  finalPrompt: 'Final prompt text',
+});
+const p3ca09Val = validateProductionCandidate(builtImageCand);
+assert(
+  p3ca09Val.isValid && builtImageCand.candidate_type === 'image' && builtImageCand.candidate_id === 'A',
+  'Test P3C-A-09: ImageProductionCandidate built via helper strictly adheres to canonical schema'
+);
+
+// P3C-A-10: Carousel Candidate built via helper conforms to canonical schema
+const builtCarouselCand = buildCarouselProductionCandidate({
+  candidate_id: 'carousel_plan',
+  objective: 'Carousel goal',
+  slide_count: 5,
+  cover_direction: 'Cover direction',
+  slides: validCarouselCand.production_details.slides,
+  visual_continuity: 'Continuity notes',
+  final_prompts: validCarouselCand.final_prompts,
+});
+const p3ca10Val = validateProductionCandidate(builtCarouselCand);
+assert(
+  p3ca10Val.isValid && builtCarouselCand.candidate_type === 'carousel' && builtCarouselCand.production_details.slide_count === 5,
+  'Test P3C-A-10: CarouselProductionCandidate built via helper strictly adheres to canonical schema'
+);
+
+// P3C-A-11: Video Candidate built via helper conforms to canonical schema
+const builtVideoCand = buildVideoProductionCandidate({
+  candidate_id: 'video_style_A',
+  production_mode: 'ugc_video',
+  objective: 'Video goal',
+  hook: 'Video hook',
+  scenes: validVideoScenes,
+  final_prompt: 'Video prompt',
+});
+const p3ca11Val = validateProductionCandidate(builtVideoCand);
+assert(
+  p3ca11Val.isValid && builtVideoCand.candidate_type === 'video' && builtVideoCand.production_details.scenes.length === 4,
+  'Test P3C-A-11: VideoProductionCandidate built via helper strictly adheres to canonical schema'
+);
+
+// P3C-A-12: Candidate builders do not mutate input arguments (Pure Construction)
+const inputScenesClone = JSON.parse(JSON.stringify(validVideoScenes));
+buildVideoProductionCandidate({
+  candidate_id: 'video_purity_test',
+  objective: 'Purity objective',
+  hook: 'Purity hook',
+  scenes: validVideoScenes,
+  final_prompt: 'Purity prompt',
+});
+assert(
+  JSON.stringify(validVideoScenes) === JSON.stringify(inputScenesClone),
+  'Test P3C-A-12: Candidate builder operates purely without mutating input parameters'
 );
 
 // -------------------------------------------------------------
