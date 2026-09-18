@@ -21,6 +21,7 @@ import {
   formatProductionContextForPrompt, 
   ANTI_DRIFT_RULES 
 } from '@/lib/production-context';
+import { resolveProductionContentItemTarget } from '@/lib/production-engine-context';
 import { FunnelStrategy } from '@/lib/funnel-strategy';
 import { 
   buildFunnelPromptBlock, 
@@ -40,8 +41,10 @@ import {
   saveProjectData, 
   removeProjectData, 
   loadProjectSharedContext,
+  loadProjectSharedContextStrictForProduction,
   loadStoredProjectFunnelStrategyStrict,
   loadProjectCalendarItems,
+  loadProjectCalendarItemsStrictForProduction,
   loadProjectSelectedItem,
   saveProjectSelectedItem,
   ensureContentItemIdentity,
@@ -4181,45 +4184,28 @@ export default function ProductionStudioPage() {
 
       setCanonicalProjectId(resolvedCanonicalId);
 
-      // Load project-scoped shared context
-      const parsedContext = loadProjectSharedContext(resolvedCanonicalId);
+      // Load project-scoped shared context strictly for production (no repair, no blueprint derivation)
+      const parsedContext = loadProjectSharedContextStrictForProduction(resolvedCanonicalId);
       setSharedContextSnapshot(parsedContext);
 
       // Load project-scoped authoritative FunnelStrategy strictly (Phase 3A: no auto-derivation)
       const parsedFunnelStrategy = loadStoredProjectFunnelStrategyStrict(resolvedCanonicalId);
       setFunnelStrategySnapshot(parsedFunnelStrategy);
 
-      // Load project calendar items
-      const calendarItems = loadProjectCalendarItems(resolvedCanonicalId);
+      // Load project calendar items strictly for production (no ID fabrication, no mutation)
+      const calendarItems = loadProjectCalendarItemsStrictForProduction(resolvedCanonicalId);
+      const savedSelected = loadProjectSelectedItem(resolvedCanonicalId);
 
-      // Find target item strictly belonging to canonical project
-      let parsedItem: ContentItem | null = null;
+      // Strict item target resolution (fails closed on invalid/missing explicit target, no unintended fallback)
+      const targetResolution = resolveProductionContentItemTarget({
+        calendarItems,
+        contentItemId: paramContentItemId,
+        itemNo: paramItemNo,
+        savedSelectedItem: savedSelected,
+      });
 
-      // 1. Try finding by contentItemId
-      if (paramContentItemId && calendarItems.length > 0) {
-        parsedItem = calendarItems.find((it: any) => it.content_item_id === paramContentItemId) || null;
-      }
-
-      // 2. Try finding by itemNo
-      if (!parsedItem && paramItemNo !== null && calendarItems.length > 0) {
-        parsedItem = calendarItems.find((it: any) => it.no === paramItemNo) || null;
-      }
-
-      // 3. Try finding by project's saved selected item
-      if (!parsedItem) {
-        parsedItem = loadProjectSelectedItem(resolvedCanonicalId);
-      }
-
-      // 4. If still not found and we have calendar items, pick the first
-      if (!parsedItem && calendarItems.length > 0) {
-        parsedItem = calendarItems[0];
-      }
-
-      // Phase 3A: No silent relabeling of item project identity.
-      // Set sourceItem as-is and save selected item
-      if (parsedItem) {
-        setSourceItem(parsedItem);
-        saveProjectSelectedItem(resolvedCanonicalId, parsedItem);
+      if (targetResolution.isValid && targetResolution.item) {
+        setSourceItem(targetResolution.item);
       } else {
         setSourceItem(null);
       }

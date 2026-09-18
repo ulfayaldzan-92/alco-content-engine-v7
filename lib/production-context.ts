@@ -152,7 +152,7 @@ export function adaptEngineContextToProductionContext(
   if (character_dna) {
     characterBlock = {
       character_id: character_dna.character_id,
-      display_name: character_dna.identity?.display_name || 'Project Creator Persona',
+      display_name: character_dna.identity?.display_name || '',
       prompt_summary:
         character_dna.prompt_assets?.dna_summary_prompt ||
         character_dna.prompt_assets?.locked_visual_prompt ||
@@ -379,5 +379,5 @@ export function formatProductionContextForPrompt(
 - Visual Direction: ${ctx.content.visual_direction || '-'}
 - Reference: ${ctx.content.referensi || '-'}
 - Call to Action (CTA): ${ctx.content.cta || '-'}
-- Format: ${ctx.content.format || 'Single'}`;
+- Format: ${ctx.content.format || '-'}`;
 }

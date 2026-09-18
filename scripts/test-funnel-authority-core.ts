@@ -19,16 +19,25 @@ import {
   saveProjectSharedContext,
   invalidateProjectFunnelStrategy,
   loadProjectData,
+  saveProjectData,
   getProjectCalendarSettings,
   saveProjectCalendarSettings,
-  getDefaultCalendarSettings
+  getDefaultCalendarSettings,
+  loadProjectCalendarItemsStrictForProduction,
+  loadProjectSharedContextStrictForProduction,
+  loadStoredProjectFunnelStrategyStrict,
 } from '../lib/storage';
 import { parseStrictFunnelStage, lockRegeneratedFunnelStage } from '../lib/funnel-rules';
 import { SharedContentContext, ContentItem, CharacterDNA } from '../lib/content-contract';
 import {
   ProductionEngineContext,
   buildProductionEngineContext,
+  resolveProductionContentItemTarget,
 } from '../lib/production-engine-context';
+import {
+  adaptEngineContextToProductionContext,
+  formatProductionContextForPrompt,
+} from '../lib/production-context';
 import {
   ImageProductionPackage,
   CarouselProductionPackage,
@@ -1472,12 +1481,18 @@ const baseGateItem: ContentItem = {
   project_id: 'proj_gate_001',
   projectId: 'proj_gate_001',
   no: 1,
+  tanggal: '2026-09-18',
   jenis: 'TOFU',
+  tujuan: 'Build awareness',
+  hookType: 'Question',
+  headline: 'Speed Tips',
+  body: 'Cara mempercepat workflow.',
+  caption: 'Pelajari cara mempercepat workflow.',
   format: 'Carousel',
-  topic: 'Speed Tips',
-  hook: 'Hook text',
-  angle: 'Angle text',
-  cta: 'Coba gratis',
+  referensi: '',
+  visual: 'Clean educational visual',
+  keterangan: 'TOFU awareness content',
+  cta: 'Simpan untuk referensi',
 };
 
 // P3A-01: Valid setup passes authority gate
@@ -1619,11 +1634,10 @@ assert(
 // P3A-10: ContentItem violating FunnelStrategy rules -> FAIL
 const violatingItem: ContentItem = {
   ...baseGateItem,
+  content_item_id: 'item_gate_violating',
   jenis: 'BOFU',
   format: 'Single',
-  topic: 'Non-matching offer topic that violates BOFU validation',
-  hook: 'Hook',
-  angle: 'Angle',
+  headline: 'Non-matching offer topic that violates BOFU validation',
   cta: 'Universal CTA yang tidak ada di BOFU',
 };
 const p3a10Res = buildProductionEngineContext(
@@ -1673,6 +1687,148 @@ const p3a12Res = buildProductionEngineContext(
 assert(
   p3a12Res.isValid && p3a12Res.context?.character_dna?.character_id === 'char_gate_001',
   'Test P3A-12: CharacterDNA matching project identity passes and attaches cleanly'
+);
+
+// P3A-13: Strict calendar loader membaca item tanpa content_item_id -> tetap tanpa ID (tidak dibuatkan)
+saveProjectData('proj_p3a_13', 'items', [
+  { no: 1, jenis: 'TOFU', headline: 'Raw Item without ID' }
+]);
+const loadedP3A13 = loadProjectCalendarItemsStrictForProduction('proj_p3a_13');
+assert(
+  loadedP3A13.length === 1 && loadedP3A13[0].content_item_id === undefined,
+  'Test P3A-13: Strict calendar loader does not fabricate content_item_id'
+);
+
+// P3A-14: Item hasil strict loader tanpa ID dikirim ke buildProductionEngineContext() -> FAIL
+const p3a14Res = buildProductionEngineContext(
+  'proj_p3a_13',
+  { ...baseGateContext, project_id: 'proj_p3a_13' },
+  buildFunnelStrategyFromContext({ ...baseGateContext, project_id: 'proj_p3a_13' }),
+  loadedP3A13[0]
+);
+assert(
+  !p3a14Res.isValid && p3a14Res.error?.includes('content_item_id authoritative non-empty string'),
+  'Test P3A-14: ContentItem from strict loader without ID is rejected at authority gate'
+);
+
+// P3A-15: Strict SharedContentContext loader membaca context tanpa project_id -> null dan storage tidak direpair
+saveProjectData('proj_p3a_15', 'context', {
+  brand_context: { brand_name: 'No Project ID Brand' },
+  system_flags: { is_complete_for_planning: true },
+});
+const loadedP3A15 = loadProjectSharedContextStrictForProduction('proj_p3a_15');
+const rawStoredP3A15 = loadProjectData('proj_p3a_15', 'context', null);
+assert(
+  loadedP3A15 === null && rawStoredP3A15.project_id === undefined,
+  'Test P3A-15: Strict SharedContentContext loader returns null and does not mutate storage'
+);
+
+// P3A-16: Hanya blueprint tersedia, tetapi stored context tidak tersedia -> null (tidak derive)
+saveProjectData('proj_p3a_16', 'blueprint', {
+  project_id: 'proj_p3a_16',
+  brand_identity: { brand_name: 'Blueprint Only' },
+});
+const loadedP3A16 = loadProjectSharedContextStrictForProduction('proj_p3a_16');
+assert(
+  loadedP3A16 === null,
+  'Test P3A-16: Strict SharedContentContext loader returns null when only blueprint exists'
+);
+
+// P3A-17: Stored FunnelStrategy tanpa project_id -> loadStoredProjectFunnelStrategyStrict() returns null
+saveProjectData('proj_p3a_17', 'funnelStrategy', {
+  provenance: { source_project_id: 'proj_p3a_17' },
+  stages: {},
+});
+const loadedP3A17 = loadStoredProjectFunnelStrategyStrict('proj_p3a_17');
+assert(
+  loadedP3A17 === null,
+  'Test P3A-17: Stored FunnelStrategy without project_id returns null'
+);
+
+// P3A-18: Stored FunnelStrategy tanpa provenance.source_project_id -> null
+saveProjectData('proj_p3a_18', 'funnelStrategy', {
+  project_id: 'proj_p3a_18',
+  stages: {},
+});
+const loadedP3A18 = loadStoredProjectFunnelStrategyStrict('proj_p3a_18');
+assert(
+  loadedP3A18 === null,
+  'Test P3A-18: Stored FunnelStrategy without provenance.source_project_id returns null'
+);
+
+// P3A-19: Explicit contentItemId = item_A, tetapi calendar hanya berisi item_B -> Resolver: FAIL / no item
+const itemB: ContentItem = {
+  ...baseGateItem,
+  content_item_id: 'item_B',
+  no: 2,
+};
+const p3a19Res = resolveProductionContentItemTarget({
+  calendarItems: [itemB],
+  contentItemId: 'item_A',
+});
+assert(
+  !p3a19Res.isValid && p3a19Res.item === undefined && p3a19Res.error?.includes('Explicit content_item_id "item_A" tidak ditemukan'),
+  'Test P3A-19: Explicit contentItemId mismatch fails closed without falling back to other items'
+);
+
+// P3A-20: Explicit itemNo tidak ditemukan -> FAIL / no fallback
+const p3a20Res = resolveProductionContentItemTarget({
+  calendarItems: [itemB],
+  itemNo: 99,
+});
+assert(
+  !p3a20Res.isValid && p3a20Res.item === undefined && p3a20Res.error?.includes('Explicit itemNo "99" tidak ditemukan'),
+  'Test P3A-20: Explicit itemNo mismatch fails closed without fallback'
+);
+
+// P3A-21: Tidak ada explicit target, saved selected item valid tersedia -> saved selected item boleh dipilih
+const savedSelectedCandidate: ContentItem = {
+  ...baseGateItem,
+  content_item_id: 'item_saved_001',
+  no: 5,
+};
+const p3a21Res = resolveProductionContentItemTarget({
+  calendarItems: [itemB],
+  savedSelectedItem: savedSelectedCandidate,
+});
+assert(
+  p3a21Res.isValid && p3a21Res.item?.content_item_id === 'item_saved_001',
+  'Test P3A-21: When no explicit target is given, saved selected item is selected'
+);
+
+// P3A-22: Production context dengan format: '' setelah formatting prompt -> DILARANG menghasilkan Format: Single
+const engineCtxForFormat = buildProductionEngineContext(
+  'proj_gate_001',
+  baseGateContext,
+  baseGateStrategy,
+  { ...baseGateItem, format: '' }
+);
+assert(engineCtxForFormat.isValid && engineCtxForFormat.context !== undefined, 'Engine context valid for format test');
+const adaptedProdCtx = adaptEngineContextToProductionContext(engineCtxForFormat.context!);
+const formattedPrompt = formatProductionContextForPrompt(adaptedProdCtx);
+assert(
+  !formattedPrompt.includes('Format: Single'),
+  'Test P3A-22: Empty format does not invent "Format: Single" in formatted prompt'
+);
+
+// P3A-23: CharacterDNA valid tetapi display_name kosong. Adapter -> DILARANG menghasilkan Project Creator Persona
+const charNoDisplayName: CharacterDNA = {
+  character_id: 'char_empty_name',
+  project_id: 'proj_gate_001',
+  identity: { display_name: '' },
+} as any;
+const engineCtxForChar = buildProductionEngineContext(
+  'proj_gate_001',
+  baseGateContext,
+  baseGateStrategy,
+  baseGateItem,
+  charNoDisplayName
+);
+assert(engineCtxForChar.isValid && engineCtxForChar.context !== undefined, 'Engine context valid for character test');
+const adaptedCharCtx = adaptEngineContextToProductionContext(engineCtxForChar.context!);
+assert(
+  adaptedCharCtx.character?.display_name === '' && adaptedCharCtx.character?.display_name !== 'Project Creator Persona',
+  'Test P3A-23: Character with empty display_name does not invent "Project Creator Persona"'
 );
 
 // -------------------------------------------------------------

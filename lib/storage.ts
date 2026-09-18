@@ -1,4 +1,4 @@
-import { SharedContentContext, buildSharedContentContext } from './content-contract';
+import { SharedContentContext, buildSharedContentContext, ContentItem } from './content-contract';
 import { FunnelStrategy, buildFunnelStrategyFromContext } from './funnel-strategy';
 
 export interface ProjectMeta {
@@ -433,7 +433,8 @@ export const invalidateProjectFunnelStrategy = (projectId: string): void => {
 
 /**
  * Loads stored FunnelStrategy strictly without auto-deriving.
- * Fails closed if missing, if project_id mismatches, or if provenance source_project_id mismatches.
+ * Fails closed if missing, if project_id is missing/empty/mismatched,
+ * or if provenance.source_project_id is missing/empty/mismatched.
  */
 export const loadStoredProjectFunnelStrategyStrict = (projectId: string): FunnelStrategy | null => {
   if (!projectId || projectId === 'default' || projectId === 'default_project') return null;
@@ -441,16 +442,10 @@ export const loadStoredProjectFunnelStrategyStrict = (projectId: string): Funnel
   if (!stored || typeof stored !== 'object') {
     return null;
   }
-  if (stored.project_id && stored.project_id !== projectId) {
-    console.error(
-      `Cross-project FunnelStrategy mismatch: expected project "${projectId}", but found stored strategy belonging to "${stored.project_id}". Rejected loading.`
-    );
+  if (!stored.project_id || typeof stored.project_id !== 'string' || !stored.project_id.trim() || stored.project_id !== projectId) {
     return null;
   }
-  if (stored.provenance?.source_project_id && stored.provenance.source_project_id !== projectId) {
-    console.error(
-      `Cross-project FunnelStrategy provenance mismatch: expected project "${projectId}", but found strategy generated from "${stored.provenance.source_project_id}". Rejected loading.`
-    );
+  if (!stored.provenance?.source_project_id || typeof stored.provenance.source_project_id !== 'string' || !stored.provenance.source_project_id.trim() || stored.provenance.source_project_id !== projectId) {
     return null;
   }
   return stored;
@@ -537,6 +532,32 @@ export const loadProjectSharedContext = (projectId: string): SharedContentContex
   return null;
 };
 
+/**
+ * Strict SharedContentContext loader for production.
+ * Strictly reads stored 'context' or 'sharedContext'.
+ * FORBIDDEN:
+ * - fallback to blueprint
+ * - buildSharedContentContext()
+ * - repair project_id
+ * - save repaired context
+ * - silent relabel
+ * Returns null if missing, project_id is missing/empty, or project_id !== projectId.
+ */
+export const loadProjectSharedContextStrictForProduction = (projectId: string): SharedContentContext | null => {
+  if (!projectId || projectId === 'default' || projectId === 'default_project') return null;
+  let context = loadProjectData(projectId, 'context', null);
+  if (!context) {
+    context = loadProjectData(projectId, 'sharedContext', null);
+  }
+  if (!context || typeof context !== 'object') {
+    return null;
+  }
+  if (!context.project_id || typeof context.project_id !== 'string' || !context.project_id.trim() || context.project_id !== projectId) {
+    return null;
+  }
+  return context;
+};
+
 export const saveProjectSharedContext = (projectId: string, context: any): void => {
   if (!projectId || !context || projectId === 'default' || projectId === 'default_project') return;
 
@@ -562,6 +583,18 @@ export const loadProjectCalendarItems = (projectId: string): any[] => {
     return items.map((item, idx) => ensureContentItemIdentity(item, projectId, idx));
   }
   return [];
+};
+
+/**
+ * Strict ContentItem loader for production.
+ * Returns raw items without mutating, fabricating IDs, or normalizing project identity.
+ * Authority validation must be performed by buildProductionEngineContext().
+ */
+export const loadProjectCalendarItemsStrictForProduction = (projectId: string): ContentItem[] => {
+  if (!projectId || projectId === 'default' || projectId === 'default_project') return [];
+  const items = loadProjectData(projectId, 'items', []);
+  if (!Array.isArray(items)) return [];
+  return items;
 };
 
 export const saveProjectCalendarItems = (projectId: string, items: any[]): void => {

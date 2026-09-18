@@ -218,3 +218,94 @@ export function buildProductionEngineContext(
     context,
   };
 }
+
+export interface ResolveProductionTargetOptions {
+  calendarItems: ContentItem[];
+  contentItemId?: string | null;
+  itemNo?: number | string | null;
+  savedSelectedItem?: ContentItem | null;
+}
+
+export interface ResolveProductionTargetResult {
+  isValid: boolean;
+  item?: ContentItem;
+  error?: string;
+}
+
+/**
+ * Resolves the target ContentItem for production strictly.
+ * 
+ * Rules:
+ * 1. If explicit contentItemId is provided:
+ *    - Must match an item in calendarItems.
+ *    - If not found -> FAIL (no fallback to itemNo, saved selected item, or first item).
+ * 2. Else if explicit itemNo is provided:
+ *    - Must match an item in calendarItems.
+ *    - If not found -> FAIL (no fallback).
+ * 3. Only if NO explicit target is specified:
+ *    - Fallback to savedSelectedItem (if valid).
+ *    - Fallback to first calendar item (if available).
+ *    - Otherwise FAIL.
+ * 
+ * Never mutates any item.
+ */
+export function resolveProductionContentItemTarget(
+  options: ResolveProductionTargetOptions
+): ResolveProductionTargetResult {
+  const { calendarItems, contentItemId, itemNo, savedSelectedItem } = options;
+
+  if (!Array.isArray(calendarItems)) {
+    return {
+      isValid: false,
+      error: 'Daftar kalender konten tidak valid.',
+    };
+  }
+
+  // 1. Explicit contentItemId target takes highest precedence
+  if (contentItemId !== undefined && contentItemId !== null && typeof contentItemId === 'string' && contentItemId.trim() !== '') {
+    const cleanId = contentItemId.trim();
+    const found = calendarItems.find((it) => it && it.content_item_id === cleanId);
+    if (found) {
+      return { isValid: true, item: found };
+    }
+    return {
+      isValid: false,
+      error: `Explicit content_item_id "${cleanId}" tidak ditemukan di kalender project. Fallback ke item lain dilarang.`,
+    };
+  }
+
+  // 2. Explicit itemNo target (only evaluated if contentItemId was not provided)
+  if (itemNo !== undefined && itemNo !== null && String(itemNo).trim() !== '') {
+    const parsedNo = typeof itemNo === 'number' ? itemNo : parseInt(String(itemNo).trim(), 10);
+    if (!isNaN(parsedNo)) {
+      const found = calendarItems.find((it) => it && it.no === parsedNo);
+      if (found) {
+        return { isValid: true, item: found };
+      }
+      return {
+        isValid: false,
+        error: `Explicit itemNo "${itemNo}" tidak ditemukan di kalender project. Fallback ke item lain dilarang.`,
+      };
+    }
+  }
+
+  // 3. No explicit target: fallback to saved selected item -> first calendar item
+  if (savedSelectedItem && typeof savedSelectedItem === 'object') {
+    return {
+      isValid: true,
+      item: savedSelectedItem,
+    };
+  }
+
+  if (calendarItems.length > 0 && calendarItems[0]) {
+    return {
+      isValid: true,
+      item: calendarItems[0],
+    };
+  }
+
+  return {
+    isValid: false,
+    error: 'Tidak ada item konten di kalender project.',
+  };
+}
