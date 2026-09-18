@@ -1202,6 +1202,59 @@ assert(
   'Test P2-T: ContentItem without format retains empty value and does not automatically become "Single"'
 );
 
+// Test P2-U: Carousel final_prompts with duplicate slide_number (e.g. 1, 1, 2 for slides 1, 2, 3) -> FAIL
+const duplicatePromptNumPkg: CarouselProductionPackage = {
+  ...validCarouselPackage,
+  final_prompts: {
+    master_prompt: 'Master prompt',
+    slides: [
+      { slide_number: 1, prompt: 'Prompt for slide 1' },
+      { slide_number: 1, prompt: 'Duplicate prompt for slide 1' },
+      { slide_number: 2, prompt: 'Prompt for slide 2' },
+    ],
+  },
+};
+const p2uRes = validateProductionPackage(duplicatePromptNumPkg);
+assert(
+  !p2uRes.isValid && p2uRes.error?.includes('Duplicate slide_number'),
+  'Test P2-U: Carousel final_prompts with duplicate slide_number fails package validation'
+);
+
+// Test P2-V: Carousel slides not sequential (e.g. 1, 3, 4) -> FAIL
+const nonSequentialSlidesPkg: CarouselProductionPackage = {
+  ...validCarouselPackage,
+  carousel: {
+    ...validCarouselPackage.carousel,
+    slides: [
+      { ...validCarouselPackage.carousel.slides[0], slide_number: 1 },
+      { ...validCarouselPackage.carousel.slides[1], slide_number: 3 },
+      { ...validCarouselPackage.carousel.slides[2], slide_number: 4 },
+    ],
+  },
+};
+const p2vRes = validateProductionPackage(nonSequentialSlidesPkg);
+assert(
+  !p2vRes.isValid && p2vRes.error?.includes('must be sequential starting at 1'),
+  'Test P2-V: Carousel with non-sequential slide numbers (1, 3, 4) fails package validation'
+);
+
+// Test P2-W: Video scenes not sequential (e.g. 1, 3) -> FAIL
+const nonSequentialScenesVidPkg: VideoProductionPackage = {
+  ...validVideoPackage,
+  video: {
+    ...validVideoPackage.video,
+    scenes: [
+      { ...validVideoPackage.video.scenes[0], scene_number: 1 },
+      { ...validVideoPackage.video.scenes[1], scene_number: 3 },
+    ],
+  },
+};
+const p2wRes = validateProductionPackage(nonSequentialScenesVidPkg);
+assert(
+  !p2wRes.isValid && p2wRes.error?.includes('must be sequential starting at 1'),
+  'Test P2-W: Video with non-sequential scene numbers (1, 3) fails package validation'
+);
+
 // -------------------------------------------------------------
 // RESULTS SUMMARY
 // -------------------------------------------------------------

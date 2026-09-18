@@ -1,5 +1,5 @@
 import { FunnelStage, parseStrictFunnelStage } from './funnel-rules';
-import { SharedContentContext, ContentItem, ensureContentItemIdentity } from './content-contract';
+import { SharedContentContext, ContentItem } from './content-contract';
 import { FunnelStrategy } from './funnel-strategy';
 
 export type ProductionAssetType = 'image' | 'carousel' | 'video';
@@ -344,6 +344,13 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
           error: `carousel.slides[${i}].slide_number must be an integer >= 1.`,
         };
       }
+      const expectedSlideNum = i + 1;
+      if (slide.slide_number !== expectedSlideNum) {
+        return {
+          isValid: false,
+          error: `carousel.slides[${i}].slide_number must be sequential starting at 1. Expected ${expectedSlideNum}, got ${slide.slide_number}.`,
+        };
+      }
       if (seenSlideNumbers.has(slide.slide_number)) {
         return {
           isValid: false,
@@ -394,6 +401,7 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
         };
       }
 
+      const seenFinalPromptNumbers = new Set<number>();
       for (let i = 0; i < carPkg.final_prompts.slides.length; i++) {
         const fpSlide = carPkg.final_prompts.slides[i];
         if (!fpSlide || typeof fpSlide !== 'object') {
@@ -401,17 +409,42 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
         }
         if (
           typeof fpSlide.slide_number !== 'number' ||
-          !seenSlideNumbers.has(fpSlide.slide_number)
+          !Number.isInteger(fpSlide.slide_number) ||
+          fpSlide.slide_number < 1
         ) {
+          return {
+            isValid: false,
+            error: `final_prompts.slides[${i}].slide_number must be an integer >= 1.`,
+          };
+        }
+        if (!seenSlideNumbers.has(fpSlide.slide_number)) {
           return {
             isValid: false,
             error: `final_prompts.slides[${i}].slide_number (${fpSlide.slide_number}) does not match any valid slide_number in carousel.slides.`,
           };
         }
+        if (seenFinalPromptNumbers.has(fpSlide.slide_number)) {
+          return {
+            isValid: false,
+            error: `Duplicate slide_number ${fpSlide.slide_number} in final_prompts.slides. Each carousel slide must have exactly one final prompt.`,
+          };
+        }
+        seenFinalPromptNumbers.add(fpSlide.slide_number);
+
         if (typeof fpSlide.prompt !== 'string' || !fpSlide.prompt.trim()) {
           return {
             isValid: false,
             error: `final_prompts.slides[${i}].prompt must be a non-empty string.`,
+          };
+        }
+      }
+
+      // Ensure every slide in carousel.slides has a corresponding final prompt
+      for (const slideNum of seenSlideNumbers) {
+        if (!seenFinalPromptNumbers.has(slideNum)) {
+          return {
+            isValid: false,
+            error: `Missing final prompt for carousel slide_number ${slideNum}.`,
           };
         }
       }
@@ -447,6 +480,13 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
         return {
           isValid: false,
           error: `video.scenes[${i}].scene_number must be an integer >= 1.`,
+        };
+      }
+      const expectedSceneNum = i + 1;
+      if (scene.scene_number !== expectedSceneNum) {
+        return {
+          isValid: false,
+          error: `video.scenes[${i}].scene_number must be sequential starting at 1. Expected ${expectedSceneNum}, got ${scene.scene_number}.`,
         };
       }
       if (seenSceneNumbers.has(scene.scene_number)) {
