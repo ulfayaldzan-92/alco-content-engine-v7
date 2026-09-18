@@ -23,7 +23,18 @@ import {
   getDefaultCalendarSettings
 } from '../lib/storage';
 import { parseStrictFunnelStage, lockRegeneratedFunnelStage } from '../lib/funnel-rules';
-import { SharedContentContext } from '../lib/content-contract';
+import { SharedContentContext, ContentItem } from '../lib/content-contract';
+import {
+  ImageProductionPackage,
+  CarouselProductionPackage,
+  VideoProductionPackage,
+  ProductionPackage,
+  validateProductionPackage,
+  validateProductionPackageIdentity,
+  buildProductionStrategySnapshot,
+  buildProductionContentSnapshot,
+  buildProductionBrandVisualSnapshot,
+} from '../lib/production-contract';
 
 const projectRoot = process.cwd();
 const errors: string[] = [];
@@ -784,6 +795,290 @@ try {
 assert(
   isolationErrorCaught,
   'Test N4: saveProjectFunnelStrategy throws strict isolation error when project ID does not match strategy'
+);
+
+// -------------------------------------------------------------
+// SECTION 13: PHASE 2 - PRODUCTION OUTPUT CONTRACT TESTS
+// -------------------------------------------------------------
+console.log('\n--- SECTION 13: Phase 2 - Production Output Contract Tests ---');
+
+const itemAImage: ContentItem = {
+  no: 1,
+  project_id: 'proj_saas_001',
+  content_item_id: 'item_proj_saas_001_1',
+  tanggal: '2026-09-20',
+  jenis: 'TOFU (Awareness)',
+  tujuan: 'Meningkatkan awareness masalah sprint delay',
+  hookType: 'Question Hook',
+  headline: '3 Tanda Tim Developer Mengalami Sprint Bottleneck',
+  body: 'Komunikasi manual antar developer dan PM sering jadi pemicu rilis tertunda.',
+  caption: 'Cek apakah tim engineering kamu sering mengalami pola ini.',
+  format: 'Single',
+  visual: 'Diagram alur sprint dengan warning icon di koordinasi manual.',
+  referensi: '',
+  keterangan: 'TOFU content edukasi bottleneck tanpa jualan langsung.',
+  cta: 'Simpan ide ini',
+};
+
+const itemACarousel: ContentItem = {
+  no: 2,
+  project_id: 'proj_saas_001',
+  content_item_id: 'item_proj_saas_001_2',
+  tanggal: '2026-09-21',
+  jenis: 'MOFU (Consideration)',
+  tujuan: 'Edukasi framework evaluasi sprint tracking',
+  hookType: 'Framework Hook',
+  headline: 'Sprint Tracking Framework: 4 Matrik Wajib untuk Tech Lead',
+  body: 'Panduan evaluasi throughput sprint secara obyektif.',
+  caption: 'Slide sampai akhir untuk template audit sprint.',
+  format: 'Carousel',
+  visual: 'Carousel slide deck modern dark mode.',
+  referensi: '',
+  keterangan: 'MOFU edukasi framework solusi.',
+  cta: 'Cek framework ini',
+};
+
+const itemAVideo: ContentItem = {
+  no: 3,
+  project_id: 'proj_saas_001',
+  content_item_id: 'item_proj_saas_001_3',
+  tanggal: '2026-09-22',
+  jenis: 'BOFU (Conversion)',
+  tujuan: 'Demo otomasi release reporting AgileHub',
+  hookType: 'Demo Hook',
+  headline: 'Otomasi Release Reporting AgileHub dalam 60 Detik',
+  body: 'Live screen recording integrasi backlog ke changelog otomatis.',
+  caption: 'Coba gratis 14 hari tanpa kartu kredit.',
+  format: 'Reels',
+  visual: 'Screen capture split with tech lead face-cam.',
+  referensi: '',
+  keterangan: 'BOFU product demo conversion.',
+  cta: 'Lihat demo',
+};
+
+// Test P2-A: Image package valid
+const validImagePackage: ImageProductionPackage = {
+  package_id: 'pkg_img_001',
+  project_id: 'proj_saas_001',
+  content_item_id: 'item_proj_saas_001_1',
+  asset_type: 'image',
+  funnel_stage: 'TOFU',
+  production_status: 'ready_for_production',
+  created_at: new Date().toISOString(),
+  strategy_snapshot: buildProductionStrategySnapshot(projectAContext, stratA, itemAImage),
+  content_snapshot: buildProductionContentSnapshot(itemAImage),
+  brand_visual_snapshot: buildProductionBrandVisualSnapshot(projectAContext),
+  image: {
+    objective: 'Meningkatkan awareness masalah sprint delay',
+    scene: 'Modern software engineering office with digital sprint board',
+    subject: 'A focused tech lead analyzing a bottleneck on the dashboard',
+    composition: 'Rule of thirds, centered sprint metric highlight',
+    environment: 'Clean minimalist startup workspace',
+    lighting: 'Soft ambient desk glow with subtle blue accent',
+    camera_direction: 'Eye level medium shot',
+    visual_style: 'Clean editorial photo with minimalist UI overlay',
+    text_overlay: 'Sprint Bottleneck: Dimana Tim Terhambat?',
+    branding: 'Minimalist AgileHub logo at bottom corner',
+    negative_constraints: 'No messy cables, no cartoon illustration, no generic happy corporate smile',
+  },
+  final_prompt: 'High quality photography of a tech lead analyzing sprint bottleneck dashboard in modern office.',
+};
+
+const imgValidation = validateProductionPackage(validImagePackage);
+const imgIdentity = validateProductionPackageIdentity('proj_saas_001', itemAImage, validImagePackage);
+assert(
+  imgValidation.isValid && imgIdentity.isValid,
+  'Test P2-A: Image package valid passes both package and identity validation'
+);
+
+// Test P2-B: Carousel package valid
+const validCarouselPackage: CarouselProductionPackage = {
+  package_id: 'pkg_car_002',
+  project_id: 'proj_saas_001',
+  content_item_id: 'item_proj_saas_001_2',
+  asset_type: 'carousel',
+  funnel_stage: 'MOFU',
+  production_status: 'ready_for_production',
+  created_at: new Date().toISOString(),
+  strategy_snapshot: buildProductionStrategySnapshot(projectAContext, stratA, itemACarousel),
+  content_snapshot: buildProductionContentSnapshot(itemACarousel),
+  carousel: {
+    objective: 'Edukasi framework evaluasi sprint tracking',
+    slide_count: 3,
+    cover_direction: 'Bold typography with high contrast sprint metric',
+    slides: [
+      {
+        slide_number: 1,
+        role: 'hook',
+        headline: 'Sprint Tracking Framework',
+        body: '4 Matrik Wajib untuk Tech Lead',
+        visual_direction: 'Cover layout with large title and metric preview',
+        layout_direction: 'Centered bold headline with author tag',
+      },
+      {
+        slide_number: 2,
+        role: 'framework',
+        headline: 'Throughput vs Cycle Time',
+        body: 'Jangan hanya ukur story points, pantau waktu rilis nyata.',
+        visual_direction: 'Side-by-side metric comparison card',
+        layout_direction: 'Split column card layout',
+      },
+      {
+        slide_number: 3,
+        role: 'cta',
+        headline: 'Simpan & Evaluasi Sprint Kamu',
+        body: 'Gunakan checklist ini pada retrospective sprint berikutnya.',
+        visual_direction: 'Clean summary checklist with save icon',
+        layout_direction: 'Card with bullet points and soft CTA pill',
+      },
+    ],
+    visual_continuity: 'Monochrome dark mode with turquoise indicator accents',
+    branding: 'AgileHub mark in header of every slide',
+    negative_constraints: 'No rainbow colors, no cluttered paragraphs, no generic stock charts',
+  },
+  final_prompts: {
+    master_prompt: 'Consistent dark-mode UI explainer carousel deck for software engineering leaders.',
+    slides: [
+      { slide_number: 1, prompt: 'Slide 1 cover: Minimalist dark dashboard with bold typography.' },
+      { slide_number: 2, prompt: 'Slide 2 framework: Clean side-by-side comparison diagram.' },
+      { slide_number: 3, prompt: 'Slide 3 CTA: Summary checklist card with bookmark icon.' },
+    ],
+  },
+};
+
+const carValidation = validateProductionPackage(validCarouselPackage);
+const carIdentity = validateProductionPackageIdentity('proj_saas_001', itemACarousel, validCarouselPackage);
+assert(
+  carValidation.isValid && carIdentity.isValid,
+  'Test P2-B: Carousel package valid passes both package and identity validation'
+);
+
+// Test P2-C: Video package valid
+const validVideoPackage: VideoProductionPackage = {
+  package_id: 'pkg_vid_003',
+  project_id: 'proj_saas_001',
+  content_item_id: 'item_proj_saas_001_3',
+  asset_type: 'video',
+  funnel_stage: 'BOFU',
+  production_status: 'ready_for_production',
+  created_at: new Date().toISOString(),
+  strategy_snapshot: buildProductionStrategySnapshot(projectAContext, stratA, itemAVideo),
+  content_snapshot: buildProductionContentSnapshot(itemAVideo),
+  video: {
+    objective: 'Demo otomasi release reporting AgileHub',
+    duration_seconds: 45,
+    format: 'vertical_9_16',
+    hook: 'Capek rekap sprint manual setiap Jumat sore?',
+    scenes: [
+      {
+        scene_number: 1,
+        duration_seconds: 5,
+        purpose: 'hook',
+        visual_direction: 'Tech lead closing laptop in frustration at 5 PM',
+        action: 'Relatable reaction to tedious manual reporting',
+        camera: 'Close-up on clock showing Friday 17:00, panning to tired expression',
+        voiceover: 'Berapa jam tim kamu habiskan tiap pekan hanya untuk bikin sprint report?',
+        on_screen_text: 'Jumat 17:00 Masih Rekap Manual?',
+      },
+      {
+        scene_number: 2,
+        duration_seconds: 40,
+        purpose: 'demo_and_cta',
+        visual_direction: 'AgileHub screen recording showing 1-click changelog generation',
+        action: 'Clicking release button and watching dashboard auto-populate',
+        camera: 'Screen capture split with presenter facecam in corner',
+        voiceover: 'Dengan AgileHub, seluruh backlog langsung terkompilasi jadi changelog siap rilis dalam 60 detik.',
+        on_screen_text: '1-Click Auto Release Report',
+      },
+    ],
+    voiceover: 'Full script for 45s product walkthrough',
+    on_screen_text: 'Highlight keywords synced with narration',
+    camera_direction: 'Crisp 9:16 vertical screencast with webcam overlay',
+    motion_direction: 'Smooth UI transitions and cursor highlights',
+    audio_direction: 'Upbeat modern low-fi beat under clear voiceover',
+    branding: 'AgileHub animated watermark top right',
+    negative_constraints: 'No robotic AI voice tone, no blurry screen resolutions, no abrupt cuts',
+  },
+  final_prompt: 'A 45-second vertical 9:16 SaaS product demo demonstrating release reporting automation in AgileHub.',
+};
+
+const vidValidation = validateProductionPackage(validVideoPackage);
+const vidIdentity = validateProductionPackageIdentity('proj_saas_001', itemAVideo, validVideoPackage);
+assert(
+  vidValidation.isValid && vidIdentity.isValid,
+  'Test P2-C: Video package valid passes both package and identity validation'
+);
+
+// Test P2-D: Invalid asset_type rejected
+const invalidAssetPkg = { ...validImagePackage, asset_type: 'audio_track' as any };
+const invalidAssetRes = validateProductionPackage(invalidAssetPkg);
+assert(
+  !invalidAssetRes.isValid && invalidAssetRes.error?.includes('Invalid asset_type'),
+  'Test P2-D: Invalid asset_type is rejected by validateProductionPackage'
+);
+
+// Test P2-E: Missing project_id rejected
+const missingProjPkg = { ...validImagePackage, project_id: '' };
+const missingProjRes = validateProductionPackage(missingProjPkg);
+assert(
+  !missingProjRes.isValid && missingProjRes.error?.includes('Missing or invalid project_id'),
+  'Test P2-E: Missing project_id is rejected by validateProductionPackage'
+);
+
+// Test P2-F: Missing content_item_id rejected
+const missingItemPkg = { ...validImagePackage, content_item_id: '   ' };
+const missingItemRes = validateProductionPackage(missingItemPkg);
+assert(
+  !missingItemRes.isValid && missingItemRes.error?.includes('Missing or invalid content_item_id'),
+  'Test P2-F: Missing content_item_id is rejected by validateProductionPackage'
+);
+
+// Test P2-G: Cross-project package rejected
+const crossProjRes = validateProductionPackageIdentity('proj_food_002', itemAImage, validImagePackage);
+const crossPkgRes = validateProductionPackageIdentity(
+  'proj_saas_001',
+  itemAImage,
+  { ...validImagePackage, project_id: 'proj_food_002' }
+);
+assert(
+  !crossProjRes.isValid && !crossPkgRes.isValid,
+  'Test P2-G: Cross-project package or active project mismatch is strictly rejected'
+);
+
+// Test P2-H: Funnel stage mismatch rejected
+const mismatchStagePkg = { ...validImagePackage, funnel_stage: 'BOFU' as any };
+const mismatchStageRes = validateProductionPackageIdentity('proj_saas_001', itemAImage, mismatchStagePkg);
+assert(
+  !mismatchStageRes.isValid && mismatchStageRes.error?.includes('Funnel stage mismatch'),
+  'Test P2-H: Funnel stage mismatch between ContentItem (TOFU) and package (BOFU) is rejected'
+);
+
+// Test P2-I: Carousel slide count mismatch rejected
+const carCountMismatchPkg: CarouselProductionPackage = {
+  ...validCarouselPackage,
+  carousel: {
+    ...validCarouselPackage.carousel,
+    slide_count: 5, // actual slides array has 3
+  },
+};
+const carCountRes = validateProductionPackage(carCountMismatchPkg);
+assert(
+  !carCountRes.isValid && carCountRes.error?.includes('slide_count'),
+  'Test P2-I: Carousel slide_count mismatch against slides array length is rejected'
+);
+
+// Test P2-J: Empty video scenes rejected
+const emptyScenesVidPkg: VideoProductionPackage = {
+  ...validVideoPackage,
+  video: {
+    ...validVideoPackage.video,
+    scenes: [],
+  },
+};
+const emptyScenesRes = validateProductionPackage(emptyScenesVidPkg);
+assert(
+  !emptyScenesRes.isValid && emptyScenesRes.error?.includes('video.scenes'),
+  'Test P2-J: Video package with empty scenes array is rejected'
 );
 
 // -------------------------------------------------------------
