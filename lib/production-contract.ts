@@ -238,11 +238,11 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
   if (!strat || typeof strat !== 'object') {
     return { isValid: false, error: 'Missing strategy_snapshot in production package.' };
   }
-  const requiredStratFields: (keyof ProductionStrategySnapshot)[] = [
+
+  // Fields that must be typeof 'string' and NON-EMPTY
+  const nonEmptyStratFields: (keyof ProductionStrategySnapshot)[] = [
     'brand_name',
-    'category',
     'primary_audience',
-    'positioning',
     'main_offer',
     'core_message',
     'campaign_goal',
@@ -251,7 +251,7 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
     'message_direction',
     'cta_direction',
   ];
-  for (const field of requiredStratFields) {
+  for (const field of nonEmptyStratFields) {
     if (typeof strat[field] !== 'string' || !(strat[field] as string).trim()) {
       return {
         isValid: false,
@@ -259,6 +259,21 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
       };
     }
   }
+
+  // Fields that must be typeof 'string' but MAY BE EMPTY
+  const allowedEmptyStratFields: (keyof ProductionStrategySnapshot)[] = [
+    'category',
+    'positioning',
+  ];
+  for (const field of allowedEmptyStratFields) {
+    if (typeof strat[field] !== 'string') {
+      return {
+        isValid: false,
+        error: `strategy_snapshot.${field} must be a string.`,
+      };
+    }
+  }
+
   if (!canonicalStages.includes(strat.funnel_stage)) {
     return {
       isValid: false,
@@ -293,6 +308,12 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
         error: `content_snapshot.${field} must be a non-empty string.`,
       };
     }
+  }
+  if (typeof content.cta !== 'string') {
+    return {
+      isValid: false,
+      error: 'content_snapshot.cta must be a string.',
+    };
   }
 
   // 8. Optional Brand Visual Snapshot
@@ -345,7 +366,7 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
     if (!imgPkg.image || typeof imgPkg.image !== 'object') {
       return { isValid: false, error: 'Missing image production details in ImageProductionPackage.' };
     }
-    const requiredImageFields: (keyof ImageProductionDetails)[] = [
+    const nonEmptyImageFields: (keyof ImageProductionDetails)[] = [
       'objective',
       'scene',
       'subject',
@@ -354,15 +375,25 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
       'lighting',
       'camera_direction',
       'visual_style',
-      'text_overlay',
-      'branding',
       'negative_constraints',
     ];
-    for (const field of requiredImageFields) {
+    for (const field of nonEmptyImageFields) {
       if (typeof imgPkg.image[field] !== 'string' || !imgPkg.image[field].trim()) {
         return {
           isValid: false,
           error: `image.${field} must be a non-empty string in ImageProductionPackage.`,
+        };
+      }
+    }
+    const allowedEmptyImageFields: (keyof ImageProductionDetails)[] = [
+      'text_overlay',
+      'branding',
+    ];
+    for (const field of allowedEmptyImageFields) {
+      if (typeof imgPkg.image[field] !== 'string') {
+        return {
+          isValid: false,
+          error: `image.${field} must be a string in ImageProductionPackage.`,
         };
       }
     }
@@ -386,8 +417,8 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
     if (typeof carPkg.carousel.visual_continuity !== 'string' || !carPkg.carousel.visual_continuity.trim()) {
       return { isValid: false, error: 'carousel.visual_continuity must be a non-empty string in CarouselProductionPackage.' };
     }
-    if (typeof carPkg.carousel.branding !== 'string' || !carPkg.carousel.branding.trim()) {
-      return { isValid: false, error: 'carousel.branding must be a non-empty string in CarouselProductionPackage.' };
+    if (typeof carPkg.carousel.branding !== 'string') {
+      return { isValid: false, error: 'carousel.branding must be a string in CarouselProductionPackage.' };
     }
     if (typeof carPkg.carousel.negative_constraints !== 'string' || !carPkg.carousel.negative_constraints.trim()) {
       return { isValid: false, error: 'carousel.negative_constraints must be a non-empty string in CarouselProductionPackage.' };
@@ -532,23 +563,33 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
     if (!vidPkg.video || typeof vidPkg.video !== 'object') {
       return { isValid: false, error: 'Missing video production details in VideoProductionPackage.' };
     }
-    const requiredVideoFields: (keyof VideoProductionDetails)[] = [
+    const nonEmptyVideoFields: (keyof VideoProductionDetails)[] = [
       'objective',
       'format',
       'hook',
-      'voiceover',
-      'on_screen_text',
       'camera_direction',
       'motion_direction',
       'audio_direction',
-      'branding',
       'negative_constraints',
     ];
-    for (const field of requiredVideoFields) {
+    for (const field of nonEmptyVideoFields) {
       if (typeof vidPkg.video[field] !== 'string' || !(vidPkg.video[field] as string).trim()) {
         return {
           isValid: false,
           error: `video.${field} must be a non-empty string in VideoProductionPackage.`,
+        };
+      }
+    }
+    const allowedEmptyVideoFields: (keyof VideoProductionDetails)[] = [
+      'voiceover',
+      'on_screen_text',
+      'branding',
+    ];
+    for (const field of allowedEmptyVideoFields) {
+      if (typeof vidPkg.video[field] !== 'string') {
+        return {
+          isValid: false,
+          error: `video.${field} must be a string in VideoProductionPackage.`,
         };
       }
     }
@@ -593,19 +634,30 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
         };
       }
 
-      const requiredSceneFields: (keyof VideoSceneProductionPlan)[] = [
+      const nonEmptySceneFields: (keyof VideoSceneProductionPlan)[] = [
         'purpose',
         'visual_direction',
         'action',
         'camera',
-        'voiceover',
-        'on_screen_text',
       ];
-      for (const field of requiredSceneFields) {
+      for (const field of nonEmptySceneFields) {
         if (typeof scene[field] !== 'string' || !(scene[field] as string).trim()) {
           return {
             isValid: false,
             error: `video.scenes[${i}].${field} must be a non-empty string.`,
+          };
+        }
+      }
+
+      const allowedEmptySceneFields: (keyof VideoSceneProductionPlan)[] = [
+        'voiceover',
+        'on_screen_text',
+      ];
+      for (const field of allowedEmptySceneFields) {
+        if (typeof scene[field] !== 'string') {
+          return {
+            isValid: false,
+            error: `video.scenes[${i}].${field} must be a string.`,
           };
         }
       }

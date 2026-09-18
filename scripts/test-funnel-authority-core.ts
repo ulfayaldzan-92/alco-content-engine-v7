@@ -12,6 +12,7 @@ import {
   validateRegenerateProjectIdentity,
   resolveCoreCampaignTopic,
   resolveClientCoreTopicRequest,
+  type FunnelStrategy,
 } from '../lib/funnel-strategy';
 import {
   saveProjectFunnelStrategy,
@@ -1340,6 +1341,91 @@ const p2acRes = validateProductionPackage(invalidBrandVisualPkg);
 assert(
   !p2acRes.isValid && p2acRes.error?.includes('brand_visual_snapshot.color_palette'),
   'Test P2-AC: Invalid optional brand_visual_snapshot field type fails package validation'
+);
+
+// Test P2-AD: Strategy snapshot with category: "" and positioning: "" -> PASS
+const emptyCategoryPositioningPkg: ImageProductionPackage = {
+  ...validImagePackage,
+  strategy_snapshot: {
+    ...validImagePackage.strategy_snapshot,
+    category: '',
+    positioning: '',
+  },
+};
+const p2adRes = validateProductionPackage(emptyCategoryPositioningPkg);
+assert(
+  p2adRes.isValid,
+  'Test P2-AD: Strategy snapshot with empty category and positioning string passes validation'
+);
+
+// Test P2-AE: Image with text_overlay: "" and branding: "" -> PASS
+const emptyTextBrandingImgPkg: ImageProductionPackage = {
+  ...validImagePackage,
+  image: {
+    ...validImagePackage.image,
+    text_overlay: '',
+    branding: '',
+  },
+};
+const p2aeRes = validateProductionPackage(emptyTextBrandingImgPkg);
+assert(
+  p2aeRes.isValid,
+  'Test P2-AE: Image with empty text_overlay and branding string passes validation'
+);
+
+// Test P2-AF: Video with voiceover: "", on_screen_text: "", branding: "" -> PASS
+const emptyVoOstBrandingVidPkg: VideoProductionPackage = {
+  ...validVideoPackage,
+  video: {
+    ...validVideoPackage.video,
+    voiceover: '',
+    on_screen_text: '',
+    branding: '',
+  },
+};
+const p2afRes = validateProductionPackage(emptyVoOstBrandingVidPkg);
+assert(
+  p2afRes.isValid,
+  'Test P2-AF: Video with empty top-level voiceover, on_screen_text, and branding passes validation'
+);
+
+// Test P2-AG: Video scene with voiceover: "", on_screen_text: "" -> PASS
+const emptySceneVoOstVidPkg: VideoProductionPackage = {
+  ...validVideoPackage,
+  video: {
+    ...validVideoPackage.video,
+    scenes: [
+      {
+        ...validVideoPackage.video.scenes[0],
+        voiceover: '',
+        on_screen_text: '',
+      },
+      {
+        ...validVideoPackage.video.scenes[1],
+        voiceover: '',
+        on_screen_text: '',
+      },
+    ],
+  },
+};
+const p2agRes = validateProductionPackage(emptySceneVoOstVidPkg);
+assert(
+  p2agRes.isValid,
+  'Test P2-AG: Video scenes with empty voiceover and on_screen_text strings pass validation'
+);
+
+// Test P2-AH: Type-only field with invalid non-string type (e.g. voiceover: 123) -> FAIL
+const invalidTypeVidPkg: VideoProductionPackage = {
+  ...validVideoPackage,
+  video: {
+    ...validVideoPackage.video,
+    voiceover: 123 as any,
+  },
+};
+const p2ahRes = validateProductionPackage(invalidTypeVidPkg);
+assert(
+  !p2ahRes.isValid && p2ahRes.error?.includes('video.voiceover must be a string'),
+  'Test P2-AH: Video with invalid non-string voiceover (123) fails package validation'
 );
 
 // -------------------------------------------------------------
