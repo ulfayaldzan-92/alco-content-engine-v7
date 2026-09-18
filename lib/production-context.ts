@@ -4,9 +4,12 @@ import {
   CharacterDNA,
   CarouselPlan,
   ContextProvenance,
-  ensureContentItemIdentity,
 } from './content-contract';
-import { normalizeFunnelStage } from './funnel-rules';
+import { FunnelStrategy } from './funnel-strategy';
+import {
+  ProductionEngineContext,
+  buildProductionEngineContext,
+} from './production-engine-context';
 
 export interface ProductionGenerationRequest {
   project_id: string;
@@ -137,14 +140,114 @@ export interface ProductionContextValidationResult {
 }
 
 /**
+ * Adapter from the canonical ProductionEngineContext to the legacy ProductionContext.
+ * ProductionEngineContext is the authoritative gate.
+ */
+export function adaptEngineContextToProductionContext(
+  engineCtx: ProductionEngineContext
+): ProductionContext {
+  const { shared_context, content_item, canonical_funnel_stage, character_dna, project_id } = engineCtx;
+
+  let characterBlock: ProductionContext['character'] = null;
+  if (character_dna) {
+    characterBlock = {
+      character_id: character_dna.character_id,
+      display_name: character_dna.identity?.display_name || 'Project Creator Persona',
+      prompt_summary:
+        character_dna.prompt_assets?.dna_summary_prompt ||
+        character_dna.prompt_assets?.locked_visual_prompt ||
+        character_dna.identity?.display_name ||
+        '',
+      dna_summary_prompt: character_dna.prompt_assets?.dna_summary_prompt,
+      locked_visual_prompt: character_dna.prompt_assets?.locked_visual_prompt,
+      preview_generation_prompt: character_dna.prompt_assets?.preview_generation_prompt,
+      scene_reuse_prompt_template: character_dna.prompt_assets?.scene_reuse_prompt_template,
+      reference_images: character_dna.reference_images || [],
+      preview_image: character_dna.preview_image,
+      identity: character_dna.identity,
+      style: character_dna.style,
+      behavior: character_dna.behavior,
+      consistency_rules: character_dna.consistency_rules,
+    };
+  }
+
+  return {
+    identity: {
+      project_id: project_id,
+      content_item_id: content_item.content_item_id!,
+      item_no: content_item.no || 1,
+      project_name: shared_context.project_name || shared_context.brand_context.brand_name,
+    },
+    brand: {
+      name: shared_context.brand_context.brand_name,
+      category: shared_context.brand_context.category || '',
+      summary: shared_context.brand_context.brand_summary || '',
+      voice: shared_context.brand_context.brand_voice || '',
+      visual_identity: shared_context.brand_visual_context ? {
+        visual_style: shared_context.brand_visual_context.visual_style,
+        color_palette: shared_context.brand_visual_context.color_palette,
+        typography_style: shared_context.brand_visual_context.typography_style,
+        image_style_rules: shared_context.brand_visual_context.image_style_rules,
+        design_mood: shared_context.brand_visual_context.design_mood,
+      } : undefined,
+    },
+    audience: {
+      primary_audience: shared_context.audience_context?.primary_audience || '',
+      pain_points: shared_context.audience_context?.pain_points || [],
+      desires: shared_context.audience_context?.desires || [],
+      objections: shared_context.audience_context?.objections || [],
+    },
+    strategy: {
+      positioning: shared_context.strategy_context?.positioning || '',
+      usp: shared_context.strategy_context?.usp || [],
+      main_offer: shared_context.strategy_context?.main_offer || '',
+      offer_benefits: shared_context.strategy_context?.offer_benefits || [],
+      core_message: shared_context.strategy_context?.core_message || '',
+      copy_direction: shared_context.strategy_context?.copy_direction || [],
+      content_pillars: shared_context.strategy_context?.content_pillars || [],
+    },
+    content: {
+      funnel_stage: canonical_funnel_stage,
+      objective: content_item.tujuan || '',
+      hook_type: content_item.hookType || '',
+      headline: content_item.headline || '',
+      body: content_item.body || '',
+      caption: content_item.caption || '',
+      format: content_item.format || '',
+      referensi: content_item.referensi || '',
+      visual_direction: content_item.visual || '',
+      cta: content_item.cta || '',
+      recommended_asset_types: content_item.recommendedAssetTypes,
+      primary_asset_type: content_item.primaryAssetType,
+      channel: content_item.channel,
+      carousel_plan: content_item.carousel_plan,
+    },
+    character: characterBlock,
+    source: {
+      context_origin: shared_context.source?.origin || 'creative_system_json',
+      provenance: shared_context.source?.provenance,
+      is_complete_for_planning: Boolean(shared_context.system_flags?.is_complete_for_planning),
+    },
+  };
+}
+
+/**
  * Validates authoritative inputs and constructs a strict ProductionContext.
- * Returns failure if identity is mismatched, missing, or if strategic planning context is incomplete.
+ * Delegated to ProductionEngineContext as the authoritative gate.
+ * 
+ * In Phase 3A:
+ * - NO automatic ID fabrication (no item_${projectId}_${no}).
+ * - NO silent project relabeling.
+ * - NO normalizeFunnelStage (parseStrictFunnelStage only).
+ * - NO format || 'Single'.
+ * - NO auto-derivation of FunnelStrategy at the gate.
  */
 export function buildProductionContext(
   canonicalProjectId: string | null | undefined,
   sharedContext: SharedContentContext | null | undefined,
   selectedItem: ContentItem | null | undefined,
-  characterDNA?: CharacterDNA | null | undefined
+  characterDNA?: CharacterDNA | null | undefined,
+  funnelStrategy?: FunnelStrategy | null | undefined
 ): ProductionContextValidationResult {
   if (!canonicalProjectId || !canonicalProjectId.trim()) {
     return {
@@ -157,13 +260,6 @@ export function buildProductionContext(
     return {
       isValid: false,
       error: 'Shared Strategy Context belum diimpor untuk project ini. Silakan lengkapi Strategy Blueprint.',
-    };
-  }
-
-  if (sharedContext.project_id !== canonicalProjectId) {
-    return {
-      isValid: false,
-      error: `Project Strategy mismatch: context (${sharedContext.project_id}) berbeda dari active project (${canonicalProjectId}).`,
     };
   }
 
@@ -191,107 +287,29 @@ export function buildProductionContext(
     };
   }
 
-  const itemProjectId = selectedItem.project_id || selectedItem.projectId;
-  if (itemProjectId && itemProjectId !== canonicalProjectId) {
+  if (!funnelStrategy) {
     return {
       isValid: false,
-      error: `Project Item mismatch: item (${itemProjectId}) berbeda dari active project (${canonicalProjectId}).`,
+      error: 'Authoritative FunnelStrategy belum dimuat untuk project ini. Produksi dilarang berjalan tanpa strategy resmi.',
     };
   }
 
-  const stampedItem = ensureContentItemIdentity(selectedItem, canonicalProjectId, selectedItem.no || 1);
-  const contentItemId = stampedItem.content_item_id || `item_${canonicalProjectId}_${selectedItem.no || 1}`;
+  const engineResult = buildProductionEngineContext(
+    canonicalProjectId,
+    sharedContext,
+    funnelStrategy,
+    selectedItem,
+    characterDNA
+  );
 
-  // Process Character DNA with strict project isolation
-  let characterBlock: ProductionContext['character'] = null;
-  if (characterDNA) {
-    if (characterDNA.project_id && characterDNA.project_id !== canonicalProjectId) {
-      console.warn(
-        `[ProductionContext] Discarding CharacterDNA belonging to project ${characterDNA.project_id} because active project is ${canonicalProjectId}`
-      );
-    } else {
-      characterBlock = {
-        character_id: characterDNA.character_id,
-        display_name: characterDNA.identity?.display_name || 'Project Creator Persona',
-        prompt_summary:
-          characterDNA.prompt_assets?.dna_summary_prompt ||
-          characterDNA.prompt_assets?.locked_visual_prompt ||
-          characterDNA.identity?.display_name ||
-          '',
-        dna_summary_prompt: characterDNA.prompt_assets?.dna_summary_prompt,
-        locked_visual_prompt: characterDNA.prompt_assets?.locked_visual_prompt,
-        preview_generation_prompt: characterDNA.prompt_assets?.preview_generation_prompt,
-        scene_reuse_prompt_template: characterDNA.prompt_assets?.scene_reuse_prompt_template,
-        reference_images: characterDNA.reference_images || [],
-        preview_image: characterDNA.preview_image,
-        identity: characterDNA.identity,
-        style: characterDNA.style,
-        behavior: characterDNA.behavior,
-        consistency_rules: characterDNA.consistency_rules,
-      };
-    }
+  if (!engineResult.isValid || !engineResult.context) {
+    return {
+      isValid: false,
+      error: engineResult.error || 'ProductionEngineContext validation failed.',
+    };
   }
 
-  const funnelStage = normalizeFunnelStage(stampedItem.jenis);
-
-  const context: ProductionContext = {
-    identity: {
-      project_id: canonicalProjectId,
-      content_item_id: contentItemId,
-      item_no: stampedItem.no || 1,
-      project_name: sharedContext.project_name || sharedContext.brand_context.brand_name,
-    },
-    brand: {
-      name: sharedContext.brand_context.brand_name,
-      category: sharedContext.brand_context.category || '',
-      summary: sharedContext.brand_context.brand_summary || '',
-      voice: sharedContext.brand_context.brand_voice || '',
-      visual_identity: sharedContext.brand_visual_context ? {
-        visual_style: sharedContext.brand_visual_context.visual_style,
-        color_palette: sharedContext.brand_visual_context.color_palette,
-        typography_style: sharedContext.brand_visual_context.typography_style,
-        image_style_rules: sharedContext.brand_visual_context.image_style_rules,
-        design_mood: sharedContext.brand_visual_context.design_mood,
-      } : undefined,
-    },
-    audience: {
-      primary_audience: sharedContext.audience_context?.primary_audience || '',
-      pain_points: sharedContext.audience_context?.pain_points || [],
-      desires: sharedContext.audience_context?.desires || [],
-      objections: sharedContext.audience_context?.objections || [],
-    },
-    strategy: {
-      positioning: sharedContext.strategy_context?.positioning || '',
-      usp: sharedContext.strategy_context?.usp || [],
-      main_offer: sharedContext.strategy_context?.main_offer || '',
-      offer_benefits: sharedContext.strategy_context?.offer_benefits || [],
-      core_message: sharedContext.strategy_context?.core_message || '',
-      copy_direction: sharedContext.strategy_context?.copy_direction || [],
-      content_pillars: sharedContext.strategy_context?.content_pillars || [],
-    },
-    content: {
-      funnel_stage: funnelStage,
-      objective: stampedItem.tujuan || '',
-      hook_type: stampedItem.hookType || '',
-      headline: stampedItem.headline || '',
-      body: stampedItem.body || '',
-      caption: stampedItem.caption || '',
-      format: stampedItem.format || 'Single',
-      referensi: stampedItem.referensi || '',
-      visual_direction: stampedItem.visual || '',
-      cta: stampedItem.cta || '',
-      recommended_asset_types: stampedItem.recommendedAssetTypes,
-      primary_asset_type: stampedItem.primaryAssetType,
-      channel: stampedItem.channel,
-      carousel_plan: stampedItem.carousel_plan,
-    },
-    character: characterBlock,
-    source: {
-      context_origin: sharedContext.source?.origin || 'creative_system_json',
-      provenance: sharedContext.source?.provenance,
-      is_complete_for_planning: Boolean(sharedContext.system_flags?.is_complete_for_planning),
-    },
-  };
+  const context = adaptEngineContextToProductionContext(engineResult.context);
 
   return {
     isValid: true,

@@ -431,6 +431,31 @@ export const invalidateProjectFunnelStrategy = (projectId: string): void => {
   removeProjectData(projectId, 'funnelStrategy');
 };
 
+/**
+ * Loads stored FunnelStrategy strictly without auto-deriving.
+ * Fails closed if missing, if project_id mismatches, or if provenance source_project_id mismatches.
+ */
+export const loadStoredProjectFunnelStrategyStrict = (projectId: string): FunnelStrategy | null => {
+  if (!projectId || projectId === 'default' || projectId === 'default_project') return null;
+  const stored = loadProjectData(projectId, 'funnelStrategy', null);
+  if (!stored || typeof stored !== 'object') {
+    return null;
+  }
+  if (stored.project_id && stored.project_id !== projectId) {
+    console.error(
+      `Cross-project FunnelStrategy mismatch: expected project "${projectId}", but found stored strategy belonging to "${stored.project_id}". Rejected loading.`
+    );
+    return null;
+  }
+  if (stored.provenance?.source_project_id && stored.provenance.source_project_id !== projectId) {
+    console.error(
+      `Cross-project FunnelStrategy provenance mismatch: expected project "${projectId}", but found strategy generated from "${stored.provenance.source_project_id}". Rejected loading.`
+    );
+    return null;
+  }
+  return stored;
+};
+
 export const loadProjectFunnelStrategy = (projectId: string): FunnelStrategy | null => {
   if (!projectId || projectId === 'default' || projectId === 'default_project') return null;
   const stored = loadProjectData(projectId, 'funnelStrategy', null);

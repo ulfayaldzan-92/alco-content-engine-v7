@@ -21,6 +21,7 @@ import {
   formatProductionContextForPrompt, 
   ANTI_DRIFT_RULES 
 } from '@/lib/production-context';
+import { FunnelStrategy } from '@/lib/funnel-strategy';
 import { 
   buildFunnelPromptBlock, 
   getFunnelRules, 
@@ -39,6 +40,7 @@ import {
   saveProjectData, 
   removeProjectData, 
   loadProjectSharedContext,
+  loadStoredProjectFunnelStrategyStrict,
   loadProjectCalendarItems,
   loadProjectSelectedItem,
   saveProjectSelectedItem,
@@ -3680,6 +3682,7 @@ export default function ProductionStudioPage() {
   // State structure for the Production Studio
   const [sourceItem, setSourceItem] = useState<ContentItem | null>(null);
   const [sharedContextSnapshot, setSharedContextSnapshot] = useState<SharedContentContext | null>(null);
+  const [funnelStrategySnapshot, setFunnelStrategySnapshot] = useState<FunnelStrategy | null>(null);
   const [characterDNA, setCharacterDNA] = useState<CharacterDNA | null>(null);
   const [savedCharacters, setSavedCharacters] = useState<CharacterDNA[]>([]);
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
@@ -3772,7 +3775,13 @@ export default function ProductionStudioPage() {
       return;
     }
 
-    const prodCtxResult = buildProductionContext(canonicalProjectId, sharedContextSnapshot, sourceItem, characterDNA);
+    const prodCtxResult = buildProductionContext(
+      canonicalProjectId,
+      sharedContextSnapshot,
+      sourceItem,
+      characterDNA,
+      funnelStrategySnapshot
+    );
     if (!prodCtxResult.isValid || !prodCtxResult.context) {
       setRenderError(prodCtxResult.error || 'Konteks project tidak sinkron.');
       showToast(prodCtxResult.error || 'Konteks project tidak sinkron.');
@@ -4055,7 +4064,13 @@ export default function ProductionStudioPage() {
       return;
     }
 
-    const prodCtxResult = buildProductionContext(canonicalProjectId, sharedContextSnapshot, sourceItem, characterDNA);
+    const prodCtxResult = buildProductionContext(
+      canonicalProjectId,
+      sharedContextSnapshot,
+      sourceItem,
+      characterDNA,
+      funnelStrategySnapshot
+    );
     if (!prodCtxResult.isValid || !prodCtxResult.context) {
       setRenderError(prodCtxResult.error || 'Konteks project tidak sinkron.');
       showToast(prodCtxResult.error || 'Konteks project tidak sinkron.');
@@ -4115,6 +4130,7 @@ export default function ProductionStudioPage() {
     setJson2VideoPayload(null);
     setSourceItem(null);
     setSharedContextSnapshot(null);
+    setFunnelStrategySnapshot(null);
     setRenderJobId(null);
     setRenderJobData(null);
 
@@ -4157,6 +4173,7 @@ export default function ProductionStudioPage() {
       if (!resolvedCanonicalId) {
         setCanonicalProjectId(null);
         setSharedContextSnapshot(null);
+        setFunnelStrategySnapshot(null);
         setSourceItem(null);
         setIsLoaded(true);
         return;
@@ -4167,6 +4184,10 @@ export default function ProductionStudioPage() {
       // Load project-scoped shared context
       const parsedContext = loadProjectSharedContext(resolvedCanonicalId);
       setSharedContextSnapshot(parsedContext);
+
+      // Load project-scoped authoritative FunnelStrategy strictly (Phase 3A: no auto-derivation)
+      const parsedFunnelStrategy = loadStoredProjectFunnelStrategyStrict(resolvedCanonicalId);
+      setFunnelStrategySnapshot(parsedFunnelStrategy);
 
       // Load project calendar items
       const calendarItems = loadProjectCalendarItems(resolvedCanonicalId);
@@ -4194,13 +4215,9 @@ export default function ProductionStudioPage() {
         parsedItem = calendarItems[0];
       }
 
-      // Ensure item has project identity attached
+      // Phase 3A: No silent relabeling of item project identity.
+      // Set sourceItem as-is and save selected item
       if (parsedItem) {
-        parsedItem = {
-          ...parsedItem,
-          projectId: resolvedCanonicalId,
-          project_id: resolvedCanonicalId,
-        };
         setSourceItem(parsedItem);
         saveProjectSelectedItem(resolvedCanonicalId, parsedItem);
       } else {
@@ -4441,7 +4458,13 @@ export default function ProductionStudioPage() {
         return;
       }
 
-      const prodCtxResult = buildProductionContext(canonicalProjectId, sharedContextSnapshot, sourceItem, characterDNA);
+      const prodCtxResult = buildProductionContext(
+        canonicalProjectId,
+        sharedContextSnapshot,
+        sourceItem,
+        characterDNA,
+        funnelStrategySnapshot
+      );
       if (!prodCtxResult.isValid || !prodCtxResult.context) {
         setGenerationError(prodCtxResult.error || 'Konteks project tidak sinkron.');
         showToast(prodCtxResult.error || 'Konteks project tidak sinkron.');

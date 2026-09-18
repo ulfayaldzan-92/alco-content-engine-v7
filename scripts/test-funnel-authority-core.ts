@@ -24,7 +24,11 @@ import {
   getDefaultCalendarSettings
 } from '../lib/storage';
 import { parseStrictFunnelStage, lockRegeneratedFunnelStage } from '../lib/funnel-rules';
-import { SharedContentContext, ContentItem } from '../lib/content-contract';
+import { SharedContentContext, ContentItem, CharacterDNA } from '../lib/content-contract';
+import {
+  ProductionEngineContext,
+  buildProductionEngineContext,
+} from '../lib/production-engine-context';
 import {
   ImageProductionPackage,
   CarouselProductionPackage,
@@ -1426,6 +1430,249 @@ const p2ahRes = validateProductionPackage(invalidTypeVidPkg);
 assert(
   !p2ahRes.isValid && p2ahRes.error?.includes('video.voiceover must be a string'),
   'Test P2-AH: Video with invalid non-string voiceover (123) fails package validation'
+);
+
+// -------------------------------------------------------------
+// SECTION 14: PHASE 3A — CANONICAL PRODUCTION AUTHORITY GATE
+// -------------------------------------------------------------
+console.log('\n--- SECTION 14: Phase 3A — Canonical Production Authority Gate ---');
+
+const baseGateContext: SharedContentContext = {
+  project_id: 'proj_gate_001',
+  project_name: 'Gate Project',
+  source: { origin: 'creative_system_json' },
+  brand_context: {
+    brand_name: 'GateBrand',
+    category: 'SaaS',
+    brand_summary: 'Brand summary',
+    brand_voice: 'Professional',
+  },
+  audience_context: {
+    primary_audience: 'Founders',
+    pain_points: ['Slow speed'],
+    desires: ['High speed'],
+    objections: ['High cost'],
+  },
+  strategy_context: {
+    positioning: 'Fastest software',
+    usp: ['Instant setup'],
+    main_offer: 'Free trial',
+    offer_benefits: ['Saves time'],
+    core_message: 'Move faster today.',
+    copy_direction: ['Direct'],
+    content_pillars: ['Speed', 'Efficiency'],
+  },
+  system_flags: { is_complete_for_planning: true, missing_required_fields: [] },
+};
+
+const baseGateStrategy = buildFunnelStrategyFromContext(baseGateContext);
+
+const baseGateItem: ContentItem = {
+  content_item_id: 'item_gate_001',
+  project_id: 'proj_gate_001',
+  projectId: 'proj_gate_001',
+  no: 1,
+  jenis: 'TOFU',
+  format: 'Carousel',
+  topic: 'Speed Tips',
+  hook: 'Hook text',
+  angle: 'Angle text',
+  cta: 'Coba gratis',
+};
+
+// P3A-01: Valid setup passes authority gate
+const p3a01Res = buildProductionEngineContext(
+  'proj_gate_001',
+  baseGateContext,
+  baseGateStrategy,
+  baseGateItem
+);
+assert(
+  p3a01Res.isValid && p3a01Res.context?.project_id === 'proj_gate_001' && p3a01Res.context?.canonical_funnel_stage === 'TOFU',
+  'Test P3A-01: Valid inputs strictly pass buildProductionEngineContext gate'
+);
+
+// P3A-02: Missing or whitespace canonicalProjectId -> FAIL
+const p3a02Res = buildProductionEngineContext(
+  '   ',
+  baseGateContext,
+  baseGateStrategy,
+  baseGateItem
+);
+assert(
+  !p3a02Res.isValid && p3a02Res.error?.includes('Canonical project ID wajib diisi'),
+  'Test P3A-02: Missing or whitespace canonicalProjectId is rejected'
+);
+
+// P3A-03: SharedContentContext.project_id mismatch with canonicalProjectId -> FAIL
+const mismatchSharedCtx: SharedContentContext = {
+  ...baseGateContext,
+  project_id: 'proj_foreign_999',
+};
+const p3a03Res = buildProductionEngineContext(
+  'proj_gate_001',
+  mismatchSharedCtx,
+  baseGateStrategy,
+  baseGateItem
+);
+assert(
+  !p3a03Res.isValid && p3a03Res.error?.includes('Project Identity Mismatch'),
+  'Test P3A-03: SharedContentContext with mismatched project_id is blocked'
+);
+
+// P3A-04: Incomplete SharedContentContext (is_complete_for_planning: false) -> FAIL
+const incompleteSharedCtx: SharedContentContext = {
+  ...baseGateContext,
+  system_flags: {
+    is_complete_for_planning: false,
+    missing_required_fields: ['brand_name'],
+  },
+};
+const p3a04Res = buildProductionEngineContext(
+  'proj_gate_001',
+  incompleteSharedCtx,
+  baseGateStrategy,
+  baseGateItem
+);
+assert(
+  !p3a04Res.isValid && p3a04Res.error?.includes('Data strategi project belum lengkap'),
+  'Test P3A-04: Incomplete SharedContentContext is rejected fail-closed'
+);
+
+// P3A-05: Missing FunnelStrategy (null/undefined) -> FAIL (no auto-derivation at gate)
+const p3a05Res = buildProductionEngineContext(
+  'proj_gate_001',
+  baseGateContext,
+  null,
+  baseGateItem
+);
+assert(
+  !p3a05Res.isValid && p3a05Res.error?.includes('FunnelStrategy wajib tersedia secara authoritative'),
+  'Test P3A-05: Missing FunnelStrategy is rejected without auto-deriving'
+);
+
+// P3A-06: FunnelStrategy with mismatched project_id or provenance -> FAIL
+const foreignStrategy = buildFunnelStrategyFromContext({
+  ...baseGateContext,
+  project_id: 'proj_foreign_999',
+});
+const p3a06Res = buildProductionEngineContext(
+  'proj_gate_001',
+  baseGateContext,
+  foreignStrategy,
+  baseGateItem
+);
+assert(
+  !p3a06Res.isValid && p3a06Res.error?.includes('Project Isolation Violation'),
+  'Test P3A-06: Cross-project FunnelStrategy is rejected by isolation check'
+);
+
+// P3A-07: ContentItem with missing content_item_id -> FAIL (no auto-fabrication)
+const itemNoId: ContentItem = {
+  ...baseGateItem,
+  content_item_id: '',
+};
+const p3a07Res = buildProductionEngineContext(
+  'proj_gate_001',
+  baseGateContext,
+  baseGateStrategy,
+  itemNoId
+);
+assert(
+  !p3a07Res.isValid && p3a07Res.error?.includes('content_item_id authoritative non-empty string'),
+  'Test P3A-07: ContentItem without content_item_id is rejected without auto-fabrication'
+);
+
+// P3A-08: ContentItem with mismatched project identity -> FAIL (no silent relabeling)
+const foreignItem: ContentItem = {
+  ...baseGateItem,
+  project_id: 'proj_foreign_999',
+  projectId: 'proj_foreign_999',
+};
+const p3a08Res = buildProductionEngineContext(
+  'proj_gate_001',
+  baseGateContext,
+  baseGateStrategy,
+  foreignItem
+);
+assert(
+  !p3a08Res.isValid && p3a08Res.error?.includes('Project Identity Mismatch'),
+  'Test P3A-08: ContentItem with cross-project ID is rejected without silent relabeling'
+);
+
+// P3A-09: ContentItem with non-canonical/invalid jenis -> FAIL (strict parse, no fallback)
+const invalidJenisItem: ContentItem = {
+  ...baseGateItem,
+  jenis: 'AWARENESS' as any,
+};
+const p3a09Res = buildProductionEngineContext(
+  'proj_gate_001',
+  baseGateContext,
+  baseGateStrategy,
+  invalidJenisItem
+);
+assert(
+  !p3a09Res.isValid && p3a09Res.error?.includes('tidak valid. Wajib salah satu dari canonical stage'),
+  'Test P3A-09: ContentItem with non-canonical funnel stage is rejected without permissive normalization'
+);
+
+// P3A-10: ContentItem violating FunnelStrategy rules -> FAIL
+const violatingItem: ContentItem = {
+  ...baseGateItem,
+  jenis: 'BOFU',
+  format: 'Single',
+  topic: 'Non-matching offer topic that violates BOFU validation',
+  hook: 'Hook',
+  angle: 'Angle',
+  cta: 'Universal CTA yang tidak ada di BOFU',
+};
+const p3a10Res = buildProductionEngineContext(
+  'proj_gate_001',
+  baseGateContext,
+  baseGateStrategy,
+  violatingItem
+);
+assert(
+  !p3a10Res.isValid && p3a10Res.error?.includes('ContentItem tidak sesuai dengan authoritative FunnelStrategy'),
+  'Test P3A-10: ContentItem violating FunnelStrategy is rejected'
+);
+
+// P3A-11: CharacterDNA with mismatched project_id -> FAIL
+const foreignChar: CharacterDNA = {
+  character_id: 'char_foreign_001',
+  project_id: 'proj_foreign_999',
+  name: 'Foreign Persona',
+  visual_description: 'Foreign look',
+} as any;
+const p3a11Res = buildProductionEngineContext(
+  'proj_gate_001',
+  baseGateContext,
+  baseGateStrategy,
+  baseGateItem,
+  foreignChar
+);
+assert(
+  !p3a11Res.isValid && p3a11Res.error?.includes('Project Isolation Violation: CharacterDNA.project_id'),
+  'Test P3A-11: CharacterDNA belonging to another project is blocked'
+);
+
+// P3A-12: CharacterDNA belonging to the same project -> PASS with character_dna attached
+const validChar: CharacterDNA = {
+  character_id: 'char_gate_001',
+  project_id: 'proj_gate_001',
+  name: 'Gate Persona',
+  visual_description: 'Gate persona look',
+} as any;
+const p3a12Res = buildProductionEngineContext(
+  'proj_gate_001',
+  baseGateContext,
+  baseGateStrategy,
+  baseGateItem,
+  validChar
+);
+assert(
+  p3a12Res.isValid && p3a12Res.context?.character_dna?.character_id === 'char_gate_001',
+  'Test P3A-12: CharacterDNA matching project identity passes and attaches cleanly'
 );
 
 // -------------------------------------------------------------
