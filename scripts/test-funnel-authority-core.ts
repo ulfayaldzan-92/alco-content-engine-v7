@@ -49,6 +49,11 @@ import {
   buildProductionContentSnapshot,
   buildProductionBrandVisualSnapshot,
 } from '../lib/production-contract';
+import {
+  buildProductionPackage,
+  ProductionAssetInput,
+  ProductionPackageMetadata,
+} from '../lib/production-engine';
 
 const projectRoot = process.cwd();
 const errors: string[] = [];
@@ -1906,6 +1911,290 @@ const p3a28Res = resolveProductionContentItemTarget({
 assert(
   p3a28Res.isValid && p3a28Res.item?.content_item_id === 'item_B',
   'Test P3A-28: Normal fallback with no explicit target selects first calendar item'
+);
+
+// =============================================================
+// PHASE 3B: SINGLE PRODUCTION ENGINE CORE TESTS
+// =============================================================
+
+// Fixture context for Phase 3B
+const p3bEngineCtxRes = buildProductionEngineContext(
+  'proj_gate_001',
+  baseGateContext,
+  baseGateStrategy,
+  baseGateItem
+);
+assert(p3bEngineCtxRes.isValid && p3bEngineCtxRes.context !== undefined, 'Phase 3B base engine context built cleanly');
+const p3bEngineCtx = p3bEngineCtxRes.context!;
+
+const p3bImageDetails = {
+  objective: 'Brand awareness and engagement',
+  scene: 'Bright minimalist studio environment',
+  subject: 'Alco productivity workspace',
+  composition: 'Rule of thirds with clean copy space on the left',
+  environment: 'Modern co-working desk',
+  lighting: 'Natural soft morning light',
+  camera_direction: 'Eye-level 50mm lens crisp focus',
+  visual_style: 'Clean professional commercial photography',
+  text_overlay: 'Speed up your workflow',
+  branding: 'Alco logo in top right corner',
+  negative_constraints: 'No text clutter, no low resolution, no artifacts',
+};
+
+const p3bImageInput: ProductionAssetInput = {
+  asset_type: 'image',
+  image: p3bImageDetails,
+  final_prompt: 'Generate a clean high-end commercial photo of Alco workspace...',
+};
+
+const p3bCarouselDetails = {
+  objective: 'Educational carousel guide',
+  slide_count: 2,
+  cover_direction: 'High contrast title slide',
+  slides: [
+    {
+      slide_number: 1,
+      role: 'Hook',
+      headline: 'Stop wasting hours',
+      body: 'Here is how to automate your content engine.',
+      visual_direction: 'Clean infographic layout',
+      layout_direction: 'Left-aligned bold text',
+    },
+    {
+      slide_number: 2,
+      role: 'Solution',
+      headline: 'Use canonical gates',
+      body: 'Always enforce deterministic authority.',
+      visual_direction: 'Diagram comparing messy vs structured flows',
+      layout_direction: 'Center-aligned structured cards',
+    },
+  ],
+  visual_continuity: 'Consistent navy and emerald accents across all slides',
+  branding: 'Alco watermark on all slides',
+  negative_constraints: 'No unreadable small typography',
+};
+
+const p3bCarouselInput: ProductionAssetInput = {
+  asset_type: 'carousel',
+  carousel: p3bCarouselDetails,
+  final_prompts: {
+    master_prompt: 'Master carousel generation guide',
+    slides: [
+      { slide_number: 1, prompt: 'Slide 1 generation prompt' },
+      { slide_number: 2, prompt: 'Slide 2 generation prompt' },
+    ],
+  },
+};
+
+const p3bVideoDetails = {
+  objective: 'Short-form awareness reel',
+  duration_seconds: 15,
+  format: '9:16 Vertical Reel',
+  hook: 'The biggest mistake in content planning',
+  scenes: [
+    {
+      scene_number: 1,
+      duration_seconds: 15,
+      purpose: 'Deliver hook and solution in one continuous sequence',
+      visual_direction: 'Creator speaking directly to camera in studio',
+      action: 'Pointing to graphical pop-ups on screen',
+      camera: 'Selfie angle medium shot',
+      voiceover: 'Stop guessing your funnel strategy. Use an authoritative engine.',
+      on_screen_text: 'Stop Guessing Strategy',
+    },
+  ],
+  voiceover: 'Stop guessing your funnel strategy. Use an authoritative engine.',
+  on_screen_text: 'Stop Guessing Strategy',
+  camera_direction: 'Direct to lens eye-level',
+  motion_direction: 'Fast-paced clean cuts with dynamic zooms',
+  audio_direction: 'Upbeat modern lofi background music',
+  branding: 'Subtle Alco badge at end card',
+  negative_constraints: 'No blurry video, no robotic monotone audio',
+};
+
+const p3bVideoInput: ProductionAssetInput = {
+  asset_type: 'video',
+  video: p3bVideoDetails,
+  final_prompt: '15-second vertical video prompt for Alco Content Engine...',
+};
+
+const p3bMetadata: ProductionPackageMetadata = {
+  package_id: 'pkg_test_001',
+  created_at: '2026-09-18T12:00:00Z',
+};
+
+// P3B-01 — IMAGE VALID
+const p3b01Res = buildProductionPackage(p3bEngineCtx, p3bImageInput, p3bMetadata);
+assert(
+  p3b01Res.isValid &&
+  p3b01Res.package?.asset_type === 'image' &&
+  p3b01Res.package?.production_status === 'ready_for_production',
+  'Test P3B-01: Valid ImageProductionPackage is created with ready_for_production status'
+);
+
+// P3B-02 — CAROUSEL VALID
+const p3b02Res = buildProductionPackage(p3bEngineCtx, p3bCarouselInput, p3bMetadata);
+assert(
+  p3b02Res.isValid &&
+  p3b02Res.package?.asset_type === 'carousel' &&
+  p3b02Res.package?.production_status === 'ready_for_production',
+  'Test P3B-02: Valid CarouselProductionPackage is created with ready_for_production status'
+);
+
+// P3B-03 — VIDEO VALID
+const p3b03Res = buildProductionPackage(p3bEngineCtx, p3bVideoInput, p3bMetadata);
+assert(
+  p3b03Res.isValid &&
+  p3b03Res.package?.asset_type === 'video' &&
+  p3b03Res.package?.production_status === 'ready_for_production',
+  'Test P3B-03: Valid VideoProductionPackage is created with ready_for_production status'
+);
+
+// P3B-04 — PROJECT ID FROM CONTEXT
+assert(
+  p3b01Res.package?.project_id === p3bEngineCtx.project_id &&
+  p3b01Res.package?.project_id === 'proj_gate_001',
+  'Test P3B-04: Package project_id is strictly derived from ProductionEngineContext'
+);
+
+// P3B-05 — CONTENT ITEM ID FROM CONTEXT
+assert(
+  p3b01Res.package?.content_item_id === p3bEngineCtx.content_item.content_item_id &&
+  p3b01Res.package?.content_item_id === 'item_gate_001',
+  'Test P3B-05: Package content_item_id is strictly derived from ProductionEngineContext'
+);
+
+// P3B-06 — FUNNEL STAGE FROM CONTEXT
+assert(
+  p3b01Res.package?.funnel_stage === p3bEngineCtx.canonical_funnel_stage &&
+  p3b01Res.package?.funnel_stage === 'TOFU',
+  'Test P3B-06: Package funnel_stage is strictly derived from ProductionEngineContext'
+);
+
+// P3B-07 — SNAPSHOT STRATEGY AUTHORITY
+const stratSnap = p3b01Res.package?.strategy_snapshot;
+assert(
+  stratSnap?.brand_name === baseGateContext.brand_context?.brand_name &&
+  stratSnap?.primary_audience === baseGateContext.audience_context?.primary_audience &&
+  stratSnap?.main_offer === baseGateContext.strategy_context?.main_offer &&
+  stratSnap?.core_message === baseGateContext.strategy_context?.core_message &&
+  stratSnap?.campaign_goal === baseGateStrategy.campaign_goal &&
+  stratSnap?.funnel_objective === baseGateStrategy.tofu?.objective &&
+  stratSnap?.message_direction === baseGateStrategy.tofu?.message_direction &&
+  stratSnap?.cta_direction === baseGateStrategy.tofu?.cta_direction,
+  'Test P3B-07: Strategy snapshot fields are authoritatively derived from active context and strategy'
+);
+
+// P3B-08 — CONTENT SNAPSHOT AUTHORITY
+const contSnap = p3b01Res.package?.content_snapshot;
+assert(
+  contSnap?.headline === baseGateItem.headline &&
+  contSnap?.body === baseGateItem.body &&
+  contSnap?.caption === baseGateItem.caption &&
+  contSnap?.cta === baseGateItem.cta &&
+  contSnap?.visual_direction === baseGateItem.visual &&
+  contSnap?.content_format === baseGateItem.format &&
+  contSnap?.strategic_objective === baseGateItem.tujuan &&
+  contSnap?.strategic_rationale === baseGateItem.keterangan,
+  'Test P3B-08: Content snapshot fields are authoritatively derived from ContentItem'
+);
+
+// P3B-09 — INVALID IMAGE REJECTED
+const invalidImageInput: ProductionAssetInput = {
+  ...p3bImageInput,
+  image: {
+    ...p3bImageDetails,
+    subject: '', // Missing non-empty subject
+  },
+};
+const p3b09Res = buildProductionPackage(p3bEngineCtx, invalidImageInput, p3bMetadata);
+assert(
+  !p3b09Res.isValid && p3b09Res.package === undefined && p3b09Res.error?.includes('image.subject'),
+  'Test P3B-09: Image with empty subject is rejected fail-closed'
+);
+
+// P3B-10 — INVALID CAROUSEL REJECTED
+const invalidCarouselInput: ProductionAssetInput = {
+  ...p3bCarouselInput,
+  carousel: {
+    ...p3bCarouselDetails,
+    slide_count: 3, // Mismatch with slides.length (2)
+  },
+};
+const p3b10Res = buildProductionPackage(p3bEngineCtx, invalidCarouselInput, p3bMetadata);
+assert(
+  !p3b10Res.isValid && p3b10Res.package === undefined && p3b10Res.error?.includes('slide_count'),
+  'Test P3B-10: Carousel with slide_count mismatch is rejected fail-closed'
+);
+
+// P3B-11 — INVALID VIDEO REJECTED
+const invalidVideoInput: ProductionAssetInput = {
+  ...p3bVideoInput,
+  video: {
+    ...p3bVideoDetails,
+    duration_seconds: 0, // Invalid duration
+  },
+};
+const p3b11Res = buildProductionPackage(p3bEngineCtx, invalidVideoInput, p3bMetadata);
+assert(
+  !p3b11Res.isValid && p3b11Res.package === undefined && p3b11Res.error?.includes('duration_seconds'),
+  'Test P3B-11: Video with non-positive duration_seconds is rejected fail-closed'
+);
+
+// P3B-12 — EMPTY package_id REJECTED
+const p3b12Res = buildProductionPackage(p3bEngineCtx, p3bImageInput, {
+  package_id: '   ',
+  created_at: '2026-09-18T12:00:00Z',
+});
+assert(
+  !p3b12Res.isValid && p3b12Res.package === undefined && p3b12Res.error?.includes('package_id'),
+  'Test P3B-12: Empty package_id in metadata is rejected fail-closed'
+);
+
+// P3B-13 — EMPTY created_at REJECTED
+const p3b13Res = buildProductionPackage(p3bEngineCtx, p3bImageInput, {
+  package_id: 'pkg_valid_001',
+  created_at: '',
+});
+assert(
+  !p3b13Res.isValid && p3b13Res.package === undefined && p3b13Res.error?.includes('created_at'),
+  'Test P3B-13: Empty created_at in metadata is rejected fail-closed'
+);
+
+// P3B-14 — NO INPUT MUTATION
+const clonedEngineCtx = JSON.parse(JSON.stringify(p3bEngineCtx));
+const clonedAssetInput = JSON.parse(JSON.stringify(p3bImageInput));
+const clonedMetadata = JSON.parse(JSON.stringify(p3bMetadata));
+
+buildProductionPackage(p3bEngineCtx, p3bImageInput, p3bMetadata);
+
+assert(
+  JSON.stringify(p3bEngineCtx) === JSON.stringify(clonedEngineCtx) &&
+  JSON.stringify(p3bImageInput) === JSON.stringify(clonedAssetInput) &&
+  JSON.stringify(p3bMetadata) === JSON.stringify(clonedMetadata),
+  'Test P3B-14: buildProductionPackage is pure and does not mutate any input'
+);
+
+// P3B-15 — READY STATUS LOCKED
+assert(
+  p3b01Res.package?.production_status === 'ready_for_production' &&
+  p3b02Res.package?.production_status === 'ready_for_production' &&
+  p3b03Res.package?.production_status === 'ready_for_production',
+  'Test P3B-15: ProductionPackage is always generated with ready_for_production status'
+);
+
+// P3B-16 — STRATEGY SNAPSHOT PROJECT ISOLATION
+const mismatchedEngineCtx: ProductionEngineContext = {
+  ...p3bEngineCtx,
+  shared_context: {
+    ...baseGateContext,
+    project_id: 'proj_other_999',
+  },
+};
+const p3b16Res = buildProductionPackage(mismatchedEngineCtx, p3bImageInput, p3bMetadata);
+assert(
+  !p3b16Res.isValid && p3b16Res.package === undefined && p3b16Res.error?.includes('isolation violation'),
+  'Test P3B-16: Strategy snapshot detects cross-project isolation violation and fails closed'
 );
 
 // -------------------------------------------------------------
