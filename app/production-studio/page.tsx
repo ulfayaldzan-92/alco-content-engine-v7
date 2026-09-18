@@ -40,14 +40,11 @@ import {
   loadProjectData, 
   saveProjectData, 
   removeProjectData, 
-  loadProjectSharedContext,
   loadProjectSharedContextStrictForProduction,
   loadStoredProjectFunnelStrategyStrict,
-  loadProjectCalendarItems,
   loadProjectCalendarItemsStrictForProduction,
   loadProjectSelectedItem,
   saveProjectSelectedItem,
-  ensureContentItemIdentity,
   getProjectCharacterDNA, 
   saveProjectCharacterDNA, 
   updateItemInProject,
@@ -4140,18 +4137,18 @@ export default function ProductionStudioPage() {
     try {
       let paramProjId: string | null = null;
       let paramContentItemId: string | null = null;
-      let paramItemNo: number | null = null;
+      let hasExplicitContentItemId = false;
+      let paramItemNo: string | number | null = null;
+      let hasExplicitItemNo = false;
       let tabParam: string | null = null;
 
       if (typeof window !== 'undefined') {
         const urlParams = new URLSearchParams(window.location.search);
         paramProjId = urlParams.get('projectId');
+        hasExplicitContentItemId = urlParams.has('contentItemId');
         paramContentItemId = urlParams.get('contentItemId');
-        const noStr = urlParams.get('itemNo');
-        if (noStr) {
-          const parsedNo = parseInt(noStr, 10);
-          if (!isNaN(parsedNo)) paramItemNo = parsedNo;
-        }
+        hasExplicitItemNo = urlParams.has('itemNo');
+        paramItemNo = urlParams.get('itemNo');
         tabParam = urlParams.get('tab');
       }
 
@@ -4200,15 +4197,18 @@ export default function ProductionStudioPage() {
       const targetResolution = resolveProductionContentItemTarget({
         calendarItems,
         contentItemId: paramContentItemId,
+        hasExplicitContentItemId,
         itemNo: paramItemNo,
+        hasExplicitItemNo,
         savedSelectedItem: savedSelected,
       });
 
-      if (targetResolution.isValid && targetResolution.item) {
-        setSourceItem(targetResolution.item);
-      } else {
-        setSourceItem(null);
-      }
+      const resolvedItem =
+        targetResolution.isValid && targetResolution.item
+          ? targetResolution.item
+          : null;
+
+      setSourceItem(resolvedItem);
 
       const charList = getProjectSavedCharacters(resolvedCanonicalId) as CharacterDNA[];
       setSavedCharacters(charList);
@@ -4236,8 +4236,8 @@ export default function ProductionStudioPage() {
         }
       }
 
-      if (parsedItem) {
-        const itemKey = getItemKey(parsedItem);
+      if (resolvedItem) {
+        const itemKey = getItemKey(resolvedItem);
         
         const storedImage = loadProjectData(resolvedCanonicalId, `studio_image_${itemKey}`);
         const storedCarousel = loadProjectData(resolvedCanonicalId, `studio_carousel_${itemKey}`);
@@ -4252,7 +4252,7 @@ export default function ProductionStudioPage() {
           if (storedImage && isErrorContent(storedImage)) {
             removeProjectData(resolvedCanonicalId, `studio_image_${itemKey}`);
           }
-          setImageOutput(getInitialDraft('image', parsedItem, parsedContext));
+          setImageOutput(getInitialDraft('image', resolvedItem, parsedContext));
         }
 
         if (storedCarousel && !isErrorContent(storedCarousel)) {
@@ -4261,7 +4261,7 @@ export default function ProductionStudioPage() {
           if (storedCarousel && isErrorContent(storedCarousel)) {
             removeProjectData(resolvedCanonicalId, `studio_carousel_${itemKey}`);
           }
-          setCarouselOutput(getInitialDraft('carousel', parsedItem, parsedContext));
+          setCarouselOutput(getInitialDraft('carousel', resolvedItem, parsedContext));
         }
 
         if (storedVideo && !isErrorContent(storedVideo)) {
@@ -4270,7 +4270,7 @@ export default function ProductionStudioPage() {
           if (storedVideo && isErrorContent(storedVideo)) {
             removeProjectData(resolvedCanonicalId, `studio_video_${itemKey}`);
           }
-          setVideoOutput(getInitialDraft('video', parsedItem, parsedContext));
+          setVideoOutput(getInitialDraft('video', resolvedItem, parsedContext));
         }
 
         if (storedUgc && !isErrorContent(storedUgc)) {
@@ -4279,7 +4279,7 @@ export default function ProductionStudioPage() {
           if (storedUgc && isErrorContent(storedUgc)) {
             removeProjectData(resolvedCanonicalId, `studio_ugc_${itemKey}`);
           }
-          setUgcOutput(getInitialDraft('ugc', parsedItem, parsedContext));
+          setUgcOutput(getInitialDraft('ugc', resolvedItem, parsedContext));
         }
 
         if (storedReview && !isErrorContent(storedReview)) {
@@ -4288,7 +4288,7 @@ export default function ProductionStudioPage() {
           if (storedReview && isErrorContent(storedReview)) {
             removeProjectData(resolvedCanonicalId, `studio_review_${itemKey}`);
           }
-          setReviewOutput(getInitialDraft('review', parsedItem, parsedContext));
+          setReviewOutput(getInitialDraft('review', resolvedItem, parsedContext));
         }
 
         if (storedRevision) {

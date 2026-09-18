@@ -1691,7 +1691,15 @@ assert(
 
 // P3A-13: Strict calendar loader membaca item tanpa content_item_id -> tetap tanpa ID (tidak dibuatkan)
 saveProjectData('proj_p3a_13', 'items', [
-  { no: 1, jenis: 'TOFU', headline: 'Raw Item without ID' }
+  {
+    ...baseGateItem,
+    content_item_id: undefined,
+    project_id: 'proj_p3a_13',
+    projectId: 'proj_p3a_13',
+    no: 1,
+    jenis: 'TOFU',
+    headline: 'Raw Item without ID',
+  }
 ]);
 const loadedP3A13 = loadProjectCalendarItemsStrictForProduction('proj_p3a_13');
 assert(
@@ -1781,19 +1789,19 @@ assert(
   'Test P3A-20: Explicit itemNo mismatch fails closed without fallback'
 );
 
-// P3A-21: Tidak ada explicit target, saved selected item valid tersedia -> saved selected item boleh dipilih
+// P3A-21: Tidak ada explicit target, saved selected item valid ada di calendar -> item dari calendar terpilih
 const savedSelectedCandidate: ContentItem = {
   ...baseGateItem,
   content_item_id: 'item_saved_001',
   no: 5,
 };
 const p3a21Res = resolveProductionContentItemTarget({
-  calendarItems: [itemB],
+  calendarItems: [itemB, savedSelectedCandidate],
   savedSelectedItem: savedSelectedCandidate,
 });
 assert(
   p3a21Res.isValid && p3a21Res.item?.content_item_id === 'item_saved_001',
-  'Test P3A-21: When no explicit target is given, saved selected item is selected'
+  'Test P3A-21: When no explicit target is given, matching saved selected item in calendar is selected'
 );
 
 // P3A-22: Production context dengan format: '' setelah formatting prompt -> DILARANG menghasilkan Format: Single
@@ -1829,6 +1837,77 @@ const adaptedCharCtx = adaptEngineContextToProductionContext(engineCtxForChar.co
 assert(
   adaptedCharCtx.character?.display_name === '' && adaptedCharCtx.character?.display_name !== 'Project Creator Persona',
   'Test P3A-23: Character with empty display_name does not invent "Project Creator Persona"'
+);
+
+// P3A-24: Stale saved selected item (item_A) tidak ada di calendar (item_B, item_C) -> fallback ke first calendar item
+const itemC: ContentItem = {
+  ...baseGateItem,
+  content_item_id: 'item_C',
+  no: 3,
+};
+const staleSavedItemA: ContentItem = {
+  ...baseGateItem,
+  content_item_id: 'item_A',
+  no: 1,
+};
+const p3a24Res = resolveProductionContentItemTarget({
+  calendarItems: [itemB, itemC],
+  savedSelectedItem: staleSavedItemA,
+});
+assert(
+  p3a24Res.isValid && p3a24Res.item?.content_item_id === 'item_B',
+  'Test P3A-24: Stale saved selected item is ignored and falls back to first active calendar item'
+);
+
+// P3A-25: Saved selected item_B ada di calendar -> resolver mengembalikan object DARI calendarItems, bukan saved object
+const oldSavedItemB: ContentItem = {
+  ...itemB,
+  headline: 'Old Stale Headline In Saved Pointer',
+};
+const liveCalendarItemB: ContentItem = {
+  ...itemB,
+  headline: 'Fresh Active Headline In Calendar',
+};
+const p3a25Res = resolveProductionContentItemTarget({
+  calendarItems: [liveCalendarItemB, itemC],
+  savedSelectedItem: oldSavedItemB,
+});
+assert(
+  p3a25Res.isValid &&
+  p3a25Res.item === liveCalendarItemB &&
+  p3a25Res.item?.headline === 'Fresh Active Headline In Calendar',
+  'Test P3A-25: Resolver returns live object from active calendar, not raw stale saved object'
+);
+
+// P3A-26: Explicit malformed itemNo ("abc") -> FAIL, no fallback
+const p3a26Res = resolveProductionContentItemTarget({
+  calendarItems: [itemB, itemC],
+  itemNo: 'abc',
+  hasExplicitItemNo: true,
+});
+assert(
+  !p3a26Res.isValid && p3a26Res.item === undefined && p3a26Res.error?.includes('tidak valid'),
+  'Test P3A-26: Explicit malformed itemNo fails closed without fallback'
+);
+
+// P3A-27: Explicit blank contentItemId ("") -> FAIL, no fallback
+const p3a27Res = resolveProductionContentItemTarget({
+  calendarItems: [itemB, itemC],
+  contentItemId: '   ',
+  hasExplicitContentItemId: true,
+});
+assert(
+  !p3a27Res.isValid && p3a27Res.item === undefined && p3a27Res.error?.includes('kosong atau malformed'),
+  'Test P3A-27: Explicit blank contentItemId fails closed without fallback'
+);
+
+// P3A-28: Tidak ada explicit target sama sekali, calendar valid -> fallback normal memilih first item
+const p3a28Res = resolveProductionContentItemTarget({
+  calendarItems: [itemB, itemC],
+});
+assert(
+  p3a28Res.isValid && p3a28Res.item?.content_item_id === 'item_B',
+  'Test P3A-28: Normal fallback with no explicit target selects first calendar item'
 );
 
 // -------------------------------------------------------------
