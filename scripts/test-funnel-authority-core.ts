@@ -2197,6 +2197,78 @@ assert(
   'Test P3B-16: Strategy snapshot detects cross-project isolation violation and fails closed'
 );
 
+// P3B-17 — MISSING CONTENT ITEM ID (REJECTED WITHOUT FALLBACK)
+const missingIdCtx: ProductionEngineContext = {
+  ...p3bEngineCtx,
+  content_item: {
+    ...p3bEngineCtx.content_item,
+    content_item_id: undefined,
+  },
+};
+const p3b17Res = buildProductionPackage(missingIdCtx, p3bImageInput, p3bMetadata);
+assert(
+  !p3b17Res.isValid && p3b17Res.package === undefined && (p3b17Res.error?.includes('content_item_id') || p3b17Res.error?.includes('ID')),
+  'Test P3B-17: Missing content_item_id in context fails closed without fabricating fallback ID'
+);
+
+// P3B-18 — FABRICATED CANONICAL STAGE (STAGE SPOOFING BLOCKED)
+const spoofedStageCtx: ProductionEngineContext = {
+  ...p3bEngineCtx,
+  canonical_funnel_stage: 'BOFU', // Mismatch with TOFU item
+};
+const p3b18Res = buildProductionPackage(spoofedStageCtx, p3bImageInput, p3bMetadata);
+assert(
+  !p3b18Res.isValid && p3b18Res.package === undefined && p3b18Res.error?.includes('mismatch with authoritative funnel stage'),
+  'Test P3B-18: Fabricated canonical_funnel_stage is detected and rejected fail-closed'
+);
+
+// P3B-19 — CONTENT ITEM VIOLATES FUNNEL AUTHORITY (BLOCKED BY PHASE 3A REVALIDATION)
+const violatingFunnelItem: ContentItem = {
+  ...baseGateItem,
+  content_item_id: 'item_violating_gate_3b',
+  jenis: 'TOFU',
+  cta: 'Beli sekarang', // Prohibited conversion CTA for TOFU
+};
+const fabricatedViolatingCtx: ProductionEngineContext = {
+  ...p3bEngineCtx,
+  content_item: violatingFunnelItem,
+};
+const p3b19Res = buildProductionPackage(fabricatedViolatingCtx, p3bImageInput, p3bMetadata);
+assert(
+  !p3b19Res.isValid && p3b19Res.package === undefined && p3b19Res.error?.includes('FunnelStrategy'),
+  'Test P3B-19: Fabricated context with funnel-violating item is blocked by Phase 3A authority revalidation'
+);
+
+// P3B-20 — CHARACTER DNA CROSS PROJECT ISOLATION VIOLATION
+const crossProjectDnaCtx: ProductionEngineContext = {
+  ...p3bEngineCtx,
+  character_dna: {
+    ...baseGateDna,
+    project_id: 'proj_alien_999',
+    projectId: 'proj_alien_999',
+  },
+};
+const p3b20Res = buildProductionPackage(crossProjectDnaCtx, p3bImageInput, p3bMetadata);
+assert(
+  !p3b20Res.isValid && p3b20Res.package === undefined && (p3b20Res.error?.includes('isolation') || p3b20Res.error?.includes('CharacterDNA')),
+  'Test P3B-20: Cross-project CharacterDNA in context fails Phase 3A revalidation fail-closed'
+);
+
+// P3B-21 — VALID CONTEXT REMAINS VALID (HAPPY PATH)
+const p3b21Res = buildProductionPackage(p3bEngineCtx, p3bImageInput, p3bMetadata);
+assert(
+  p3b21Res.isValid && p3b21Res.package !== undefined && p3b21Res.package.production_status === 'ready_for_production',
+  'Test P3B-21: Valid ProductionEngineContext passes revalidation and builds production package'
+);
+
+// P3B-22 — AUTHORITY RESULT STRICTLY APPLIED TO PACKAGE
+assert(
+  p3b21Res.package?.project_id === p3bEngineCtx.project_id &&
+  p3b21Res.package?.content_item_id === p3bEngineCtx.content_item.content_item_id &&
+  p3b21Res.package?.funnel_stage === p3bEngineCtx.canonical_funnel_stage,
+  'Test P3B-22: Production package fields strictly reflect authoritative context values'
+);
+
 // -------------------------------------------------------------
 // RESULTS SUMMARY
 // -------------------------------------------------------------

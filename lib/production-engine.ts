@@ -5,16 +5,16 @@ import {
   CarouselProductionDetails,
   CarouselFinalPrompts,
   VideoProductionDetails,
-  ImageProductionPackage,
-  CarouselProductionPackage,
-  VideoProductionPackage,
   buildProductionStrategySnapshot,
   buildProductionContentSnapshot,
   buildProductionBrandVisualSnapshot,
   validateProductionPackage,
   validateProductionPackageIdentity,
 } from './production-contract';
-import { ProductionEngineContext } from './production-engine-context';
+import {
+  ProductionEngineContext,
+  buildProductionEngineContext,
+} from './production-engine-context';
 
 /**
  * Pure discriminated union for structured production asset inputs.
@@ -126,7 +126,45 @@ export function buildProductionPackage(
     };
   }
 
-  // 3. Validate ProductionAssetInput structure
+  // 3. Revalidate ProductionEngineContext through Phase 3A authority gate
+  const authorityCheck = buildProductionEngineContext(
+    engineContext.project_id,
+    engineContext.shared_context,
+    engineContext.funnel_strategy,
+    engineContext.content_item,
+    engineContext.character_dna
+  );
+
+  if (!authorityCheck.isValid || !authorityCheck.context) {
+    return {
+      isValid: false,
+      error: authorityCheck.error || 'ProductionEngineContext failed authority validation.',
+    };
+  }
+
+  const authoritativeContext = authorityCheck.context;
+
+  // 4. Check canonical_funnel_stage consistency (cannot be spoofed/fabricated)
+  if (engineContext.canonical_funnel_stage !== authoritativeContext.canonical_funnel_stage) {
+    return {
+      isValid: false,
+      error: `ProductionEngineContext canonical_funnel_stage ("${engineContext.canonical_funnel_stage}") mismatch with authoritative funnel stage ("${authoritativeContext.canonical_funnel_stage}").`,
+    };
+  }
+
+  // 5. Strict content_item_id validation + type narrowing
+  const authoritativeContentItemId = authoritativeContext.content_item.content_item_id;
+  if (
+    typeof authoritativeContentItemId !== 'string' ||
+    !authoritativeContentItemId.trim()
+  ) {
+    return {
+      isValid: false,
+      error: 'Authoritative ContentItem content_item_id is missing or invalid.',
+    };
+  }
+
+  // 6. Validate ProductionAssetInput structure
   if (!assetInput || typeof assetInput !== 'object') {
     return {
       isValid: false,
@@ -141,21 +179,21 @@ export function buildProductionPackage(
     };
   }
 
-  // 4. Build authoritative snapshots from context (fail-closed on error)
+  // 7. Build authoritative snapshots from authoritative context (fail-closed on error)
   let strategySnapshot;
   let contentSnapshot;
   let brandVisualSnapshot;
   try {
     strategySnapshot = buildProductionStrategySnapshot(
-      engineContext.shared_context,
-      engineContext.funnel_strategy,
-      engineContext.content_item
+      authoritativeContext.shared_context,
+      authoritativeContext.funnel_strategy,
+      authoritativeContext.content_item
     );
     contentSnapshot = buildProductionContentSnapshot(
-      engineContext.content_item
+      authoritativeContext.content_item
     );
     brandVisualSnapshot = buildProductionBrandVisualSnapshot(
-      engineContext.shared_context
+      authoritativeContext.shared_context
     );
   } catch (err: any) {
     return {
@@ -164,12 +202,12 @@ export function buildProductionPackage(
     };
   }
 
-  // 5. Construct base package from authoritative context and metadata
+  // 8. Construct base package from authoritative context and metadata
   const basePackage = {
     package_id: metadata.package_id.trim(),
-    project_id: engineContext.project_id,
-    content_item_id: engineContext.content_item.content_item_id,
-    funnel_stage: engineContext.canonical_funnel_stage,
+    project_id: authoritativeContext.project_id,
+    content_item_id: authoritativeContentItemId.trim(),
+    funnel_stage: authoritativeContext.canonical_funnel_stage,
     production_status: 'ready_for_production' as const,
     created_at: metadata.created_at.trim(),
     strategy_snapshot: strategySnapshot,
@@ -177,7 +215,7 @@ export function buildProductionPackage(
     ...(brandVisualSnapshot ? { brand_visual_snapshot: brandVisualSnapshot } : {}),
   };
 
-  // 6. Build typed candidate based on asset_type
+  // 9. Build typed candidate based on asset_type
   let candidate: ProductionPackage;
   if (assetInput.asset_type === 'image') {
     candidate = {
@@ -207,7 +245,7 @@ export function buildProductionPackage(
     };
   }
 
-  // 7. Step A: Validate complete ProductionPackage schema & fields
+  // 10. Step A: Validate complete ProductionPackage schema & fields
   const packageValidation = validateProductionPackage(candidate);
   if (!packageValidation.isValid) {
     return {
@@ -216,10 +254,10 @@ export function buildProductionPackage(
     };
   }
 
-  // 8. Step B: Validate strict identity alignment with active project and content item
+  // 11. Step B: Validate strict identity alignment with active project and content item
   const identityValidation = validateProductionPackageIdentity(
-    engineContext.project_id,
-    engineContext.content_item,
+    authoritativeContext.project_id,
+    authoritativeContext.content_item,
     candidate
   );
   if (!identityValidation.isValid) {
