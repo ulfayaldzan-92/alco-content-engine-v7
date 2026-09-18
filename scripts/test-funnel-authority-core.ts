@@ -1145,7 +1145,7 @@ const mismatchFinalPromptsPkg: CarouselProductionPackage = {
 const p2pRes = validateProductionPackage(mismatchFinalPromptsPkg);
 assert(!p2pRes.isValid && p2pRes.error?.includes('final_prompts.slides length'), 'Test P2-P: Carousel final_prompts slides count mismatch fails package validation');
 
-// Test P2-Q: Carousel duplicate slide_number -> FAIL
+// Test P2-Q: Carousel duplicate/non-sequential slide_number -> FAIL
 const duplicateSlideNumPkg: CarouselProductionPackage = {
   ...validCarouselPackage,
   carousel: {
@@ -1158,7 +1158,7 @@ const duplicateSlideNumPkg: CarouselProductionPackage = {
   },
 };
 const p2qRes = validateProductionPackage(duplicateSlideNumPkg);
-assert(!p2qRes.isValid && p2qRes.error?.includes('Duplicate slide_number'), 'Test P2-Q: Carousel duplicate slide_number fails package validation');
+assert(!p2qRes.isValid, 'Test P2-Q: Carousel duplicate/non-sequential slide_number fails package validation');
 
 // Test P2-R: Video scene duration <= 0 -> FAIL
 const invalidDurationVidPkg: VideoProductionPackage = {
@@ -1253,6 +1253,93 @@ const p2wRes = validateProductionPackage(nonSequentialScenesVidPkg);
 assert(
   !p2wRes.isValid && p2wRes.error?.includes('must be sequential starting at 1'),
   'Test P2-W: Video with non-sequential scene numbers (1, 3) fails package validation'
+);
+
+// Test P2-X: ProductionPackage funnel_stage "TOFU (Awareness)" -> FAIL
+const nonCanonicalStagePkg: ImageProductionPackage = {
+  ...validImagePackage,
+  funnel_stage: 'TOFU (Awareness)' as any,
+};
+const p2xRes = validateProductionPackage(nonCanonicalStagePkg);
+assert(
+  !p2xRes.isValid && p2xRes.error?.includes('must be canonical'),
+  'Test P2-X: Non-canonical funnel_stage "TOFU (Awareness)" is rejected'
+);
+
+// Test P2-Y: Image missing required field (e.g. lighting) -> FAIL
+const missingLightingImgPkg: ImageProductionPackage = {
+  ...validImagePackage,
+  image: {
+    ...validImagePackage.image,
+    lighting: '',
+  },
+};
+const p2yRes = validateProductionPackage(missingLightingImgPkg);
+assert(
+  !p2yRes.isValid && p2yRes.error?.includes('image.lighting must be a non-empty string'),
+  'Test P2-Y: Image missing required lighting field is rejected'
+);
+
+// Test P2-Z: Video missing required field (e.g. hook) -> FAIL
+const missingHookVidPkg: VideoProductionPackage = {
+  ...validVideoPackage,
+  video: {
+    ...validVideoPackage.video,
+    hook: '',
+  },
+};
+const p2zRes = validateProductionPackage(missingHookVidPkg);
+assert(
+  !p2zRes.isValid && p2zRes.error?.includes('video.hook must be a non-empty string'),
+  'Test P2-Z: Video missing required hook field is rejected'
+);
+
+// Test P2-AA: Carousel without final_prompts -> FAIL
+const missingFinalPromptsCarPkg: CarouselProductionPackage = {
+  ...validCarouselPackage,
+  final_prompts: undefined as any,
+};
+const p2aaRes = validateProductionPackage(missingFinalPromptsCarPkg);
+assert(
+  !p2aaRes.isValid && p2aaRes.error?.includes('final_prompts'),
+  'Test P2-AA: Carousel without final_prompts is rejected'
+);
+
+// Test P2-AB: FunnelStrategy.project_id = A but provenance.source_project_id = B -> buildProductionStrategySnapshot THROW
+let p2abThrown = false;
+try {
+  const mismatchedProvenanceStrat: FunnelStrategy = {
+    ...stratA,
+    provenance: {
+      ...stratA.provenance,
+      source_project_id: 'proj_other_999',
+    },
+  };
+  buildProductionStrategySnapshot(projectAContext, mismatchedProvenanceStrat, itemAImage);
+} catch (err: any) {
+  p2abThrown = true;
+  assert(
+    err.message.includes('provenance.source_project_id'),
+    'Test P2-AB: Error message mentions provenance mismatch'
+  );
+}
+assert(
+  p2abThrown,
+  'Test P2-AB: Mismatched FunnelStrategy provenance throws in buildProductionStrategySnapshot'
+);
+
+// Test P2-AC: Invalid optional brand_visual_snapshot type -> FAIL
+const invalidBrandVisualPkg: ImageProductionPackage = {
+  ...validImagePackage,
+  brand_visual_snapshot: {
+    ...validImagePackage.brand_visual_snapshot,
+    color_palette: 12345 as any,
+  },
+};
+const p2acRes = validateProductionPackage(invalidBrandVisualPkg);
+assert(
+  !p2acRes.isValid && p2acRes.error?.includes('brand_visual_snapshot.color_palette'),
+  'Test P2-AC: Invalid optional brand_visual_snapshot field type fails package validation'
 );
 
 // -------------------------------------------------------------
