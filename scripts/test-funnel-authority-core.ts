@@ -2193,8 +2193,8 @@ const mismatchedEngineCtx: ProductionEngineContext = {
 };
 const p3b16Res = buildProductionPackage(mismatchedEngineCtx, p3bImageInput, p3bMetadata);
 assert(
-  !p3b16Res.isValid && p3b16Res.package === undefined && p3b16Res.error?.includes('isolation violation'),
-  'Test P3B-16: Strategy snapshot detects cross-project isolation violation and fails closed'
+  !p3b16Res.isValid && p3b16Res.package === undefined && p3b16Res.error?.includes('Project Identity Mismatch'),
+  'Test P3B-16: Cross-project SharedContentContext is rejected by Phase 3A authority revalidation'
 );
 
 // P3B-17 — MISSING CONTENT ITEM ID (REJECTED WITHOUT FALLBACK)
@@ -2243,14 +2243,13 @@ assert(
 const crossProjectDnaCtx: ProductionEngineContext = {
   ...p3bEngineCtx,
   character_dna: {
-    ...baseGateDna,
+    ...validChar,
     project_id: 'proj_alien_999',
-    projectId: 'proj_alien_999',
   },
 };
 const p3b20Res = buildProductionPackage(crossProjectDnaCtx, p3bImageInput, p3bMetadata);
 assert(
-  !p3b20Res.isValid && p3b20Res.package === undefined && (p3b20Res.error?.includes('isolation') || p3b20Res.error?.includes('CharacterDNA')),
+  !p3b20Res.isValid && p3b20Res.package === undefined && (p3b20Res.error?.includes('CharacterDNA') || p3b20Res.error?.includes('Project Isolation Violation')),
   'Test P3B-20: Cross-project CharacterDNA in context fails Phase 3A revalidation fail-closed'
 );
 
