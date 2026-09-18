@@ -213,16 +213,47 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
     };
   }
 
-  // 4. Strategy Snapshot
+  // 4. Production status
+  const validStatuses: ProductionStatus[] = [
+    'draft',
+    'ready_for_production',
+    'generating',
+    'completed',
+    'failed',
+  ];
+  if (!validStatuses.includes(pkg.production_status)) {
+    return {
+      isValid: false,
+      error: `Invalid production_status "${pkg.production_status}". Must be one of: ${validStatuses.join(', ')}.`,
+    };
+  }
+
+  // 5. Created at
+  if (typeof pkg.created_at !== 'string' || !pkg.created_at.trim()) {
+    return { isValid: false, error: 'Missing or invalid created_at in production package.' };
+  }
+
+  // 6. Strategy Snapshot
   const strat = pkg.strategy_snapshot;
   if (!strat || typeof strat !== 'object') {
     return { isValid: false, error: 'Missing strategy_snapshot in production package.' };
   }
-  if (typeof strat.brand_name !== 'string' || !strat.brand_name.trim()) {
-    return { isValid: false, error: 'strategy_snapshot.brand_name must be a non-empty string.' };
-  }
-  if (typeof strat.core_message !== 'string' || !strat.core_message.trim()) {
-    return { isValid: false, error: 'strategy_snapshot.core_message must be a non-empty string.' };
+  const requiredStratFields: (keyof ProductionStrategySnapshot)[] = [
+    'brand_name',
+    'core_message',
+    'campaign_goal',
+    'funnel_stage',
+    'funnel_objective',
+    'message_direction',
+    'cta_direction',
+  ];
+  for (const field of requiredStratFields) {
+    if (typeof strat[field] !== 'string' || !(strat[field] as string).trim()) {
+      return {
+        isValid: false,
+        error: `strategy_snapshot.${field} must be a non-empty string.`,
+      };
+    }
   }
   const stratStage = parseStrictFunnelStage(strat.funnel_stage);
   if (!stratStage || stratStage !== parsedStage) {
@@ -232,20 +263,50 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
     };
   }
 
-  // 5. Content Snapshot
+  // 7. Content Snapshot
   const content = pkg.content_snapshot;
   if (!content || typeof content !== 'object') {
     return { isValid: false, error: 'Missing content_snapshot in production package.' };
   }
-  if (typeof content.headline !== 'string' || !content.headline.trim()) {
-    return { isValid: false, error: 'content_snapshot.headline must be a non-empty string.' };
+  const requiredContentFields: (keyof ProductionContentSnapshot)[] = [
+    'headline',
+    'body',
+    'caption',
+    'visual_direction',
+    'content_format',
+    'strategic_objective',
+    'strategic_rationale',
+  ];
+  for (const field of requiredContentFields) {
+    if (typeof content[field] !== 'string' || !(content[field] as string).trim()) {
+      return {
+        isValid: false,
+        error: `content_snapshot.${field} must be a non-empty string.`,
+      };
+    }
   }
 
-  // 6. Asset-specific validation
+  // 8. Asset-specific validation
   if (pkg.asset_type === 'image') {
     const imgPkg = pkg as ImageProductionPackage;
     if (!imgPkg.image || typeof imgPkg.image !== 'object') {
       return { isValid: false, error: 'Missing image production details in ImageProductionPackage.' };
+    }
+    const requiredImageFields: (keyof ImageProductionDetails)[] = [
+      'objective',
+      'scene',
+      'subject',
+      'composition',
+      'visual_style',
+      'negative_constraints',
+    ];
+    for (const field of requiredImageFields) {
+      if (typeof imgPkg.image[field] !== 'string' || !imgPkg.image[field].trim()) {
+        return {
+          isValid: false,
+          error: `image.${field} must be a non-empty string in ImageProductionPackage.`,
+        };
+      }
     }
     if (typeof imgPkg.final_prompt !== 'string' || !imgPkg.final_prompt.trim()) {
       return { isValid: false, error: 'Missing or empty final_prompt in ImageProductionPackage.' };
@@ -258,26 +319,109 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
     if (!carPkg.carousel || typeof carPkg.carousel !== 'object') {
       return { isValid: false, error: 'Missing carousel production details in CarouselProductionPackage.' };
     }
-    if (!Array.isArray(carPkg.carousel.slides) || carPkg.carousel.slides.length === 0) {
-      return { isValid: false, error: 'CarouselProductionPackage must have at least one slide in carousel.slides.' };
-    }
-    if (typeof carPkg.carousel.slide_count !== 'number' || carPkg.carousel.slide_count !== carPkg.carousel.slides.length) {
+    if (typeof carPkg.carousel.slide_count !== 'number' || carPkg.carousel.slide_count <= 0) {
       return {
         isValid: false,
-        error: `Carousel slide_count (${carPkg.carousel.slide_count}) does not match slides array length (${carPkg.carousel.slides.length}).`,
+        error: 'Carousel slide_count must be a positive number greater than 0.',
       };
     }
+    if (!Array.isArray(carPkg.carousel.slides) || carPkg.carousel.slides.length !== carPkg.carousel.slide_count) {
+      return {
+        isValid: false,
+        error: `Carousel slide_count (${carPkg.carousel.slide_count}) does not match slides array length (${carPkg.carousel?.slides?.length ?? 0}).`,
+      };
+    }
+
+    const seenSlideNumbers = new Set<number>();
+    for (let i = 0; i < carPkg.carousel.slides.length; i++) {
+      const slide = carPkg.carousel.slides[i];
+      if (!slide || typeof slide !== 'object') {
+        return { isValid: false, error: `carousel.slides[${i}] must be a non-null object.` };
+      }
+      if (typeof slide.slide_number !== 'number' || !Number.isInteger(slide.slide_number) || slide.slide_number < 1) {
+        return {
+          isValid: false,
+          error: `carousel.slides[${i}].slide_number must be an integer >= 1.`,
+        };
+      }
+      if (seenSlideNumbers.has(slide.slide_number)) {
+        return {
+          isValid: false,
+          error: `Duplicate slide_number ${slide.slide_number} detected in carousel.slides.`,
+        };
+      }
+      seenSlideNumbers.add(slide.slide_number);
+
+      const requiredSlideFields: (keyof CarouselSlideProductionPlan)[] = [
+        'role',
+        'headline',
+        'body',
+        'visual_direction',
+        'layout_direction',
+      ];
+      for (const field of requiredSlideFields) {
+        if (typeof slide[field] !== 'string' || !(slide[field] as string).trim()) {
+          return {
+            isValid: false,
+            error: `carousel.slides[${i}].${field} must be a non-empty string.`,
+          };
+        }
+      }
+    }
+
+    // Final prompts validation
     const hasFinalPrompts =
       carPkg.final_prompts &&
-      typeof carPkg.final_prompts === 'object' &&
-      typeof carPkg.final_prompts.master_prompt === 'string' &&
-      carPkg.final_prompts.master_prompt.trim() !== '' &&
-      Array.isArray(carPkg.final_prompts.slides);
-    const hasFinalPromptStr = typeof carPkg.final_prompt === 'string' && carPkg.final_prompt.trim() !== '';
+      typeof carPkg.final_prompts === 'object';
 
-    if (!hasFinalPrompts && !hasFinalPromptStr) {
-      return { isValid: false, error: 'Missing final_prompts or final_prompt in CarouselProductionPackage.' };
+    if (hasFinalPrompts) {
+      if (
+        typeof carPkg.final_prompts.master_prompt !== 'string' ||
+        !carPkg.final_prompts.master_prompt.trim()
+      ) {
+        return {
+          isValid: false,
+          error: 'final_prompts.master_prompt must be a non-empty string.',
+        };
+      }
+      if (
+        !Array.isArray(carPkg.final_prompts.slides) ||
+        carPkg.final_prompts.slides.length !== carPkg.carousel.slide_count
+      ) {
+        return {
+          isValid: false,
+          error: `final_prompts.slides length (${carPkg.final_prompts?.slides?.length ?? 0}) must equal carousel.slide_count (${carPkg.carousel.slide_count}).`,
+        };
+      }
+
+      for (let i = 0; i < carPkg.final_prompts.slides.length; i++) {
+        const fpSlide = carPkg.final_prompts.slides[i];
+        if (!fpSlide || typeof fpSlide !== 'object') {
+          return { isValid: false, error: `final_prompts.slides[${i}] must be an object.` };
+        }
+        if (
+          typeof fpSlide.slide_number !== 'number' ||
+          !seenSlideNumbers.has(fpSlide.slide_number)
+        ) {
+          return {
+            isValid: false,
+            error: `final_prompts.slides[${i}].slide_number (${fpSlide.slide_number}) does not match any valid slide_number in carousel.slides.`,
+          };
+        }
+        if (typeof fpSlide.prompt !== 'string' || !fpSlide.prompt.trim()) {
+          return {
+            isValid: false,
+            error: `final_prompts.slides[${i}].prompt must be a non-empty string.`,
+          };
+        }
+      }
+    } else {
+      const hasFinalPromptStr = typeof carPkg.final_prompt === 'string' && carPkg.final_prompt.trim() !== '';
+      if (!hasFinalPromptStr) {
+        return { isValid: false, error: 'Missing final_prompts or final_prompt in CarouselProductionPackage.' };
+      }
     }
+
     return { isValid: true };
   }
 
@@ -286,12 +430,56 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
     if (!vidPkg.video || typeof vidPkg.video !== 'object') {
       return { isValid: false, error: 'Missing video production details in VideoProductionPackage.' };
     }
+    if (typeof vidPkg.video.duration_seconds !== 'number' || !Number.isFinite(vidPkg.video.duration_seconds) || vidPkg.video.duration_seconds <= 0) {
+      return { isValid: false, error: 'video.duration_seconds must be a positive finite number.' };
+    }
     if (!Array.isArray(vidPkg.video.scenes) || vidPkg.video.scenes.length === 0) {
       return { isValid: false, error: 'VideoProductionPackage must contain at least one scene in video.scenes.' };
     }
-    if (typeof vidPkg.video.duration_seconds !== 'number' || vidPkg.video.duration_seconds <= 0) {
-      return { isValid: false, error: 'video.duration_seconds must be a positive number.' };
+
+    const seenSceneNumbers = new Set<number>();
+    for (let i = 0; i < vidPkg.video.scenes.length; i++) {
+      const scene = vidPkg.video.scenes[i];
+      if (!scene || typeof scene !== 'object') {
+        return { isValid: false, error: `video.scenes[${i}] must be a non-null object.` };
+      }
+      if (typeof scene.scene_number !== 'number' || !Number.isInteger(scene.scene_number) || scene.scene_number < 1) {
+        return {
+          isValid: false,
+          error: `video.scenes[${i}].scene_number must be an integer >= 1.`,
+        };
+      }
+      if (seenSceneNumbers.has(scene.scene_number)) {
+        return {
+          isValid: false,
+          error: `Duplicate scene_number ${scene.scene_number} detected in video.scenes.`,
+        };
+      }
+      seenSceneNumbers.add(scene.scene_number);
+
+      if (typeof scene.duration_seconds !== 'number' || !Number.isFinite(scene.duration_seconds) || scene.duration_seconds <= 0) {
+        return {
+          isValid: false,
+          error: `video.scenes[${i}].duration_seconds must be a positive finite number.`,
+        };
+      }
+
+      const requiredSceneFields: (keyof VideoSceneProductionPlan)[] = [
+        'purpose',
+        'visual_direction',
+        'action',
+        'camera',
+      ];
+      for (const field of requiredSceneFields) {
+        if (typeof scene[field] !== 'string' || !(scene[field] as string).trim()) {
+          return {
+            isValid: false,
+            error: `video.scenes[${i}].${field} must be a non-empty string.`,
+          };
+        }
+      }
     }
+
     if (typeof vidPkg.final_prompt !== 'string' || !vidPkg.final_prompt.trim()) {
       return { isValid: false, error: 'Missing or empty final_prompt in VideoProductionPackage.' };
     }
@@ -314,7 +502,23 @@ export function validateProductionPackageIdentity(
     return { isValid: false, error: 'Active project_id must be a non-empty string.' };
   }
 
-  // 1. Check package project_id against active project
+  // 1. Authoritative ContentItem project_id check (no fallback/empty)
+  const itemProjectId = contentItem.project_id || contentItem.projectId;
+  if (!itemProjectId || typeof itemProjectId !== 'string' || !itemProjectId.trim()) {
+    return {
+      isValid: false,
+      error: 'ContentItem must have a non-empty project_id/projectId.',
+    };
+  }
+
+  if (itemProjectId !== activeProjectId) {
+    return {
+      isValid: false,
+      error: `Project isolation violation: ContentItem project_id (${itemProjectId}) does not match active project (${activeProjectId}).`,
+    };
+  }
+
+  // 2. Authoritative ProductionPackage project_id check
   if (productionPackage.project_id !== activeProjectId) {
     return {
       isValid: false,
@@ -322,21 +526,18 @@ export function validateProductionPackageIdentity(
     };
   }
 
-  // 2. Check content item project_id against active project
-  const itemProjectId = contentItem.project_id || contentItem.projectId;
-  if (itemProjectId && itemProjectId !== activeProjectId) {
+  // 3. Authoritative content_item_id check (no invented fallback)
+  if (!contentItem.content_item_id || typeof contentItem.content_item_id !== 'string' || !contentItem.content_item_id.trim()) {
     return {
       isValid: false,
-      error: `Project isolation violation: ContentItem project_id (${itemProjectId}) does not match active project (${activeProjectId}).`,
+      error: 'ContentItem must have an authoritative non-empty content_item_id.',
     };
   }
 
-  // 3. Check content_item_id match
-  const expectedItemId = contentItem.content_item_id || `item_${activeProjectId}_${contentItem.no || 1}`;
-  if (productionPackage.content_item_id !== expectedItemId) {
+  if (productionPackage.content_item_id !== contentItem.content_item_id) {
     return {
       isValid: false,
-      error: `Content item identity mismatch: ProductionPackage content_item_id (${productionPackage.content_item_id}) does not match ContentItem (${expectedItemId}).`,
+      error: `Content item identity mismatch: ProductionPackage content_item_id (${productionPackage.content_item_id}) does not match ContentItem (${contentItem.content_item_id}).`,
     };
   }
 
@@ -361,14 +562,38 @@ export function validateProductionPackageIdentity(
 
 /**
  * Constructs an authoritative ProductionStrategySnapshot from project context and FunnelStrategy.
- * Pure function: No fabricated facts.
+ * Pure function: No fabricated facts. Strictly project-isolated and fail-closed.
  */
 export function buildProductionStrategySnapshot(
   sharedContext: SharedContentContext,
   funnelStrategy: FunnelStrategy,
   contentItem: ContentItem
 ): ProductionStrategySnapshot {
-  const stage = parseStrictFunnelStage(contentItem.jenis) || 'TOFU';
+  const contextProjectId = sharedContext.project_id;
+  const strategyProjectId = funnelStrategy.project_id;
+  const itemProjectId = contentItem.project_id || contentItem.projectId;
+
+  if (!contextProjectId || typeof contextProjectId !== 'string' || !contextProjectId.trim()) {
+    throw new Error('SharedContentContext project_id is missing or empty in buildProductionStrategySnapshot.');
+  }
+  if (!strategyProjectId || typeof strategyProjectId !== 'string' || !strategyProjectId.trim()) {
+    throw new Error('FunnelStrategy project_id is missing or empty in buildProductionStrategySnapshot.');
+  }
+  if (!itemProjectId || typeof itemProjectId !== 'string' || !itemProjectId.trim()) {
+    throw new Error('ContentItem project_id is missing or empty in buildProductionStrategySnapshot.');
+  }
+
+  if (contextProjectId !== strategyProjectId || contextProjectId !== itemProjectId) {
+    throw new Error(
+      `Cross-project isolation violation in buildProductionStrategySnapshot: context(${contextProjectId}), strategy(${strategyProjectId}), item(${itemProjectId}) must all match.`
+    );
+  }
+
+  const stage = parseStrictFunnelStage(contentItem.jenis);
+  if (!stage) {
+    throw new Error(`Invalid ContentItem funnel stage: "${contentItem.jenis}". Cannot build strategy snapshot.`);
+  }
+
   const stageStrategy =
     stage === 'TOFU'
       ? funnelStrategy.tofu
@@ -393,6 +618,7 @@ export function buildProductionStrategySnapshot(
 
 /**
  * Constructs an authoritative ProductionContentSnapshot from a ContentItem.
+ * Does not invent default formats or values.
  */
 export function buildProductionContentSnapshot(
   contentItem: ContentItem
@@ -403,7 +629,7 @@ export function buildProductionContentSnapshot(
     caption: contentItem.caption || '',
     cta: contentItem.cta || '',
     visual_direction: contentItem.visual || '',
-    content_format: contentItem.format || 'Single',
+    content_format: contentItem.format || '',
     strategic_objective: contentItem.tujuan || '',
     strategic_rationale: contentItem.keterangan || '',
   };

@@ -1081,6 +1081,127 @@ assert(
   'Test P2-J: Video package with empty scenes array is rejected'
 );
 
+// Test P2-K: Invalid ContentItem funnel stage in buildProductionStrategySnapshot -> THROW
+let p2kThrown = false;
+try {
+  const invalidStageItem: ContentItem = {
+    ...itemAImage,
+    jenis: 'INVALID_STAGE_XYZ' as any,
+  };
+  buildProductionStrategySnapshot(projectAContext, stratA, invalidStageItem);
+} catch (err: any) {
+  p2kThrown = true;
+  assert(err.message.includes('Invalid ContentItem funnel stage'), 'Test P2-K: Error message mentions invalid funnel stage');
+}
+assert(p2kThrown, 'Test P2-K: Invalid ContentItem funnel stage throws in buildProductionStrategySnapshot');
+
+// Test P2-L: Cross-project sources in buildProductionStrategySnapshot (Context A + FunnelStrategy B + Item A) -> THROW
+let p2lThrown = false;
+try {
+  buildProductionStrategySnapshot(projectAContext, stratB, itemAImage);
+} catch (err: any) {
+  p2lThrown = true;
+  assert(err.message.includes('Cross-project isolation violation'), 'Test P2-L: Error message mentions cross-project violation');
+}
+assert(p2lThrown, 'Test P2-L: Cross-project sources strictly throw in buildProductionStrategySnapshot');
+
+// Test P2-M: ContentItem without project_id -> identity validation FAIL
+const itemWithoutProj: ContentItem = {
+  ...itemAImage,
+  project_id: '',
+  projectId: undefined,
+};
+const p2mRes = validateProductionPackageIdentity('proj_saas_001', itemWithoutProj, validImagePackage);
+assert(!p2mRes.isValid && p2mRes.error?.includes('project_id'), 'Test P2-M: ContentItem without project_id fails identity validation');
+
+// Test P2-N: ContentItem without content_item_id -> identity validation FAIL
+const itemWithoutId: ContentItem = {
+  ...itemAImage,
+  content_item_id: '',
+};
+const p2nRes = validateProductionPackageIdentity('proj_saas_001', itemWithoutId, validImagePackage);
+assert(!p2nRes.isValid && p2nRes.error?.includes('content_item_id'), 'Test P2-N: ContentItem without content_item_id fails identity validation');
+
+// Test P2-O: Image package with image: {} -> FAIL
+const emptyImagePkg: ImageProductionPackage = {
+  ...validImagePackage,
+  image: {} as any,
+};
+const p2oRes = validateProductionPackage(emptyImagePkg);
+assert(!p2oRes.isValid && p2oRes.error?.includes('image.'), 'Test P2-O: Image package with empty image details fails package validation');
+
+// Test P2-P: Carousel final_prompts slides count mismatch against slide_count -> FAIL
+const mismatchFinalPromptsPkg: CarouselProductionPackage = {
+  ...validCarouselPackage,
+  final_prompts: {
+    master_prompt: 'Master prompt',
+    slides: [
+      { slide_number: 1, prompt: 'Slide 1' },
+      { slide_number: 2, prompt: 'Slide 2' },
+      // missing slide 3
+    ],
+  },
+};
+const p2pRes = validateProductionPackage(mismatchFinalPromptsPkg);
+assert(!p2pRes.isValid && p2pRes.error?.includes('final_prompts.slides length'), 'Test P2-P: Carousel final_prompts slides count mismatch fails package validation');
+
+// Test P2-Q: Carousel duplicate slide_number -> FAIL
+const duplicateSlideNumPkg: CarouselProductionPackage = {
+  ...validCarouselPackage,
+  carousel: {
+    ...validCarouselPackage.carousel,
+    slides: [
+      { ...validCarouselPackage.carousel.slides[0], slide_number: 1 },
+      { ...validCarouselPackage.carousel.slides[1], slide_number: 1 }, // duplicate
+      { ...validCarouselPackage.carousel.slides[2], slide_number: 3 },
+    ],
+  },
+};
+const p2qRes = validateProductionPackage(duplicateSlideNumPkg);
+assert(!p2qRes.isValid && p2qRes.error?.includes('Duplicate slide_number'), 'Test P2-Q: Carousel duplicate slide_number fails package validation');
+
+// Test P2-R: Video scene duration <= 0 -> FAIL
+const invalidDurationVidPkg: VideoProductionPackage = {
+  ...validVideoPackage,
+  video: {
+    ...validVideoPackage.video,
+    scenes: [
+      { ...validVideoPackage.video.scenes[0], duration_seconds: 0 },
+      validVideoPackage.video.scenes[1],
+    ],
+  },
+};
+const p2rRes = validateProductionPackage(invalidDurationVidPkg);
+assert(!p2rRes.isValid && p2rRes.error?.includes('duration_seconds must be a positive finite number'), 'Test P2-R: Video scene duration <= 0 fails package validation');
+
+// Test P2-S: Video scene missing required visual/action/camera field -> FAIL
+const missingSceneFieldsVidPkg: VideoProductionPackage = {
+  ...validVideoPackage,
+  video: {
+    ...validVideoPackage.video,
+    scenes: [
+      {
+        ...validVideoPackage.video.scenes[0],
+        visual_direction: '',
+      },
+      validVideoPackage.video.scenes[1],
+    ],
+  },
+};
+const p2sRes = validateProductionPackage(missingSceneFieldsVidPkg);
+assert(!p2sRes.isValid && p2sRes.error?.includes('visual_direction must be a non-empty string'), 'Test P2-S: Video scene missing required fields fails package validation');
+
+// Test P2-T: ContentItem without format does not default to "Single"
+const unformattedItem: ContentItem = {
+  ...itemAImage,
+  format: '' as any,
+};
+const snapshotUnformatted = buildProductionContentSnapshot(unformattedItem);
+assert(
+  snapshotUnformatted.content_format === '',
+  'Test P2-T: ContentItem without format retains empty value and does not automatically become "Single"'
+);
+
 // -------------------------------------------------------------
 // RESULTS SUMMARY
 // -------------------------------------------------------------
