@@ -1635,10 +1635,8 @@ assert(
 const violatingItem: ContentItem = {
   ...baseGateItem,
   content_item_id: 'item_gate_violating',
-  jenis: 'BOFU',
-  format: 'Single',
-  headline: 'Non-matching offer topic that violates BOFU validation',
-  cta: 'Universal CTA yang tidak ada di BOFU',
+  jenis: 'TOFU',
+  cta: 'Beli sekarang',
 };
 const p3a10Res = buildProductionEngineContext(
   'proj_gate_001',
