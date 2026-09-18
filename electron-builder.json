@@ -1,0 +1,44 @@
+{
+  "appId": "com.alco.contentengine",
+  "productName": "ALCO Content Engine",
+  "icon": "assets/icon.ico",
+  "directories": {
+    "output": "dist-electron"
+  },
+  "files": [
+    ".next/**/*",
+    "public/**/*",
+    "electron/**/*",
+    "assets/**/*",
+    "package.json"
+  ],
+  "asarUnpack": [
+    ".next/**/*",
+    "public/**/*",
+    "assets/**/*",
+    "electron/**/*",
+    "node_modules/**/*"
+  ],
+  "win": {
+    "executableName": "ALCO Content Engine",
+    "icon": "assets/icon.ico",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "installerIcon": "assets/icon.ico",
+    "uninstallerIcon": "assets/icon.ico",
+    "artifactName": "ALCO Content Engine Setup ${version}.${ext}",
+    "deleteAppDataOnUninstall": false
+  }
+}

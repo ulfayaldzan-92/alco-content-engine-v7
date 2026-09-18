@@ -1,0 +1,8 @@
+{
+  "name": " Alco-Content-Engine-v5",
+  "description": "Imported from GitHub: yaladzan92-creator/Alco-Content-Engine",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

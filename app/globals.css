@@ -1,0 +1,189 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --primary: #2563eb; /* ALCO Blue Canonical Primary */
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --border: #e2e8f0;
+  --sidebar: #ffffff;
+  --sidebar-border: #e2e8f0;
+  --alco-blue: #2563eb;
+  --alco-gold: #d4a017;
+  --product-accent: #06b6d4; /* ALCO Content Engine Product Accent: Cyan */
+  --product-accent-foreground: #ffffff;
+}
+
+.dark, [data-theme="dark"] {
+  --background: #0b0f17;
+  --foreground: #f8fafc;
+  --card: #0f172a;
+  --card-foreground: #f8fafc;
+  --primary: #2563eb; /* ALCO Blue Canonical Primary */
+  --primary-foreground: #ffffff;
+  --secondary: #1e293b;
+  --secondary-foreground: #f8fafc;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --border: #1e293b;
+  --sidebar: #0f172a;
+  --sidebar-border: #1e293b;
+  --alco-blue: #2563eb;
+  --alco-gold: #d4a017;
+  --product-accent: #06b6d4; /* ALCO Content Engine Product Accent: Cyan */
+  --product-accent-foreground: #ffffff;
+}
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-alco-blue: var(--alco-blue);
+  --color-alco-gold: var(--alco-gold);
+  --color-product-accent: var(--product-accent);
+  --color-product-accent-foreground: var(--product-accent-foreground);
+}
+
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+}
+
+/* ==========================================================================
+   ALCO UI/UX STANDARD v1.0 Normalization (Section 3.1 & Section 28)
+   Map legacy hardcoded color tokens to canonical ALCO semantic tokens
+   ========================================================================== */
+.bg-\[\#fffdf8\] {
+  background-color: var(--card) !important;
+}
+
+.bg-\[\#f6f3ee\] {
+  background-color: var(--muted) !important;
+}
+
+.border-\[\#e7e0d4\] {
+  border-color: var(--border) !important;
+}
+
+.text-\[\#1f2933\] {
+  color: var(--foreground) !important;
+}
+
+.text-\[\#627d98\] {
+  color: var(--muted-foreground) !important;
+}
+
+.dark body {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+.dark .bg-white {
+  background-color: var(--card) !important;
+}
+
+.dark .text-stone-900 {
+  color: var(--foreground) !important;
+}
+
+.dark .text-stone-800 {
+  color: #e2e8f0 !important;
+}
+
+.dark .text-stone-700 {
+  color: #cbd5e1 !important;
+}
+
+.dark .text-stone-600 {
+  color: var(--muted-foreground) !important;
+}
+
+.dark .text-stone-500 {
+  color: #64748b !important;
+}
+
+.dark .bg-stone-50 {
+  background-color: var(--muted) !important;
+}
+
+.dark .bg-stone-100 {
+  background-color: var(--muted) !important;
+}
+
+.dark .border-stone-200 {
+  border-color: var(--border) !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(231, 224, 212, 0.5);
+  border-radius: 9999px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(30, 41, 59, 0.5);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(186, 175, 160, 0.7);
+  border-radius: 9999px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.7);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #2563eb;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.editorial-shadow {
+  box-shadow: 0 2px 12px -2px rgba(31, 41, 51, 0.05), 0 1px 3px 0 rgba(31, 41, 51, 0.03);
+}
+
+.dark .editorial-shadow {
+  box-shadow: 0 2px 12px -2px rgba(0, 0, 0, 0.3), 0 1px 3px 0 rgba(0, 0, 0, 0.2);
+}
+
+.editorial-shadow-lg {
+  box-shadow: 0 10px 25px -5px rgba(31, 41, 51, 0.08), 0 4px 10px -2px rgba(31, 41, 51, 0.03);
+}
+
+.dark .editorial-shadow-lg {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 4px 10px -2px rgba(0, 0, 0, 0.3);
+}
+
