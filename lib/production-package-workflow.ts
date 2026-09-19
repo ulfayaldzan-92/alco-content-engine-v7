@@ -3,8 +3,8 @@ import type { FunnelStrategy } from './funnel-strategy';
 import type { ProductionCandidate } from './production-candidate';
 import { selectProductionCandidate } from './production-candidate-adapter';
 import { buildProductionEngineContext } from './production-engine-context';
+import type { ProductionPackage } from './production-contract';
 import {
-  type ProductionPackage,
   type ProductionPackageMetadata,
   buildProductionPackage,
 } from './production-engine';

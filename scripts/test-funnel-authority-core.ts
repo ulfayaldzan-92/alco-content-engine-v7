@@ -3055,10 +3055,40 @@ const p3daContentItemId = 'item_p3da_001';
 
 const p3daSharedContext: SharedContentContext = {
   project_id: p3daProjectId,
-  brand_context: { brand_name: 'Brand Alpha', brand_voice: 'Warm' },
-  business_context: { main_offer: 'Core Service', category: 'SaaS', primary_audience: 'Founders', positioning: 'Leader', core_transformation: 'Scale' },
-  content_defaults: { default_cta: 'Sign Up', target_locations: ['Jakarta'] },
-  system_flags: { is_complete_for_planning: true, missing_required_fields: [] },
+  project_name: 'P3DA Test Project',
+
+  source: {
+    origin: 'manual_context',
+  },
+
+  brand_context: {
+    brand_name: 'Brand Alpha',
+    category: 'SaaS',
+    brand_summary: 'Test brand for production workflow',
+    brand_voice: 'Professional',
+  },
+
+  audience_context: {
+    primary_audience: 'Founders',
+    pain_points: ['Workflow produksi belum terstruktur'],
+    desires: ['Produksi konten yang konsisten'],
+    objections: ['Apakah workflow ini mudah digunakan?'],
+  },
+
+  strategy_context: {
+    positioning: 'Structured content production system',
+    usp: ['Canonical production workflow'],
+    main_offer: 'Core Service',
+    offer_benefits: ['Consistent production workflow'],
+    core_message: 'Create structured content consistently',
+    copy_direction: ['Clear and practical'],
+    content_pillars: ['Education', 'Evaluation', 'Conversion'],
+  },
+
+  system_flags: {
+    is_complete_for_planning: true,
+    missing_required_fields: [],
+  },
 };
 
 const p3daStrategy: FunnelStrategy = buildFunnelStrategyFromContext(p3daSharedContext);
@@ -3066,27 +3096,62 @@ const p3daStrategy: FunnelStrategy = buildFunnelStrategyFromContext(p3daSharedCo
 const p3daContentItem: ContentItem = {
   no: p3daItemNo,
   content_item_id: p3daContentItemId,
+
   project_id: p3daProjectId,
+  projectId: p3daProjectId,
+
   tanggal: '2026-10-01',
-  hari: 'Monday',
-  channel: 'Instagram',
-  funnel_stage: 'TOFU',
-  strategic_objective: 'Awareness',
-  strategic_rationale: 'Reach new leads',
-  content_format: 'Single Image',
+
+  jenis: 'TOFU',
+  tujuan: 'Membangun awareness',
+  hookType: 'Question',
+
   headline: 'Headline Alpha',
-  body: 'Body Alpha',
-  caption: 'Caption Alpha',
-  cta: 'Click Link',
-  visual_direction: 'Clean minimalist layout',
-  status: 'planned',
+  body: 'Body Alpha yang menjelaskan konteks konten.',
+  caption: 'Caption Alpha untuk publikasi.',
+  cta: 'Simpan postingan ini',
+
+  format: 'Single',
+  recommendedAssetTypes: ['image', 'carousel', 'video'],
+  primaryAssetType: 'image',
+
+  referensi: 'Internal test reference',
+  visual: 'Clean minimalist layout',
+  keterangan: 'Konten ditempatkan di TOFU untuk membangun awareness.',
 };
 
 const p3daCharacterDNA: CharacterDNA = {
+  character_id: 'char_p3da_001',
   project_id: p3daProjectId,
-  archetype: 'Expert',
-  tone_traits: ['Direct'],
-  communication_style: 'Professional',
+
+  reference_images: [],
+
+  identity: {
+    display_name: 'Test Creator',
+  },
+
+  style: {},
+
+  behavior: {
+    on_camera_persona: 'Professional',
+  },
+
+  consistency_rules: {
+    locked_traits: [],
+    avoid_traits: [],
+  },
+
+  prompt_assets: {
+    dna_summary_prompt: 'Test character DNA',
+    locked_visual_prompt: 'Keep visual identity consistent',
+    preview_generation_prompt: 'Generate preview',
+    scene_reuse_prompt_template: 'Reuse character consistently',
+  },
+
+  timestamps: {
+    created_at: '2026-09-19T00:00:00.000Z',
+    updated_at: '2026-09-19T00:00:00.000Z',
+  },
 };
 
 const p3daMetadata: ProductionPackageMetadata = {
