@@ -3524,13 +3524,13 @@ assert(
 
 // P3D-B-05: Non-authoritative image source: 'none' -> false
 assert(
-  isAuthoritativeProductionOutputSource('none' as any) === false,
+  isAuthoritativeProductionOutputSource('none') === false,
   'Test P3D-B-05: Non-authoritative source "none" is rejected'
 );
 
 // P3D-B-06: Non-authoritative image source: 'initial_draft' -> false
 assert(
-  isAuthoritativeProductionOutputSource('initial_draft' as any) === false,
+  isAuthoritativeProductionOutputSource('initial_draft') === false,
   'Test P3D-B-06: Non-authoritative source "initial_draft" is rejected'
 );
 
@@ -3574,9 +3574,53 @@ assert(
 );
 
 // P3D-B-13: Clicked Angle B selects canonical candidate B specifically (candidates A != B != C)
-const candA_B13 = buildImageProductionCandidate({ candidate_id: 'A', finalPrompt: 'Prompt Angle A', visualObjective: 'Obj A' });
-const candB_B13 = buildImageProductionCandidate({ candidate_id: 'B', finalPrompt: 'Prompt Angle B', visualObjective: 'Obj B' });
-const candC_B13 = buildImageProductionCandidate({ candidate_id: 'C', finalPrompt: 'Prompt Angle C', visualObjective: 'Obj C' });
+const candA_B13 = buildImageProductionCandidate({
+  candidate_id: 'A',
+  visualObjective: 'Objective A',
+  scene: 'Scene A',
+  subject: 'Subject A',
+  composition: 'Composition A',
+  environment: 'Environment A',
+  lighting: 'Lighting A',
+  camera: 'Camera A',
+  visualStyle: 'Visual Style A',
+  textOverlay: 'Overlay A',
+  branding: '',
+  negativeConstraints: 'No clutter',
+  finalPrompt: 'Prompt Angle A',
+});
+
+const candB_B13 = buildImageProductionCandidate({
+  candidate_id: 'B',
+  visualObjective: 'Objective B',
+  scene: 'Scene B',
+  subject: 'Subject B',
+  composition: 'Composition B',
+  environment: 'Environment B',
+  lighting: 'Lighting B',
+  camera: 'Camera B',
+  visualStyle: 'Visual Style B',
+  textOverlay: 'Overlay B',
+  branding: '',
+  negativeConstraints: 'No clutter',
+  finalPrompt: 'Prompt Angle B',
+});
+
+const candC_B13 = buildImageProductionCandidate({
+  candidate_id: 'C',
+  visualObjective: 'Objective C',
+  scene: 'Scene C',
+  subject: 'Subject C',
+  composition: 'Composition C',
+  environment: 'Environment C',
+  lighting: 'Lighting C',
+  camera: 'Camera C',
+  visualStyle: 'Visual Style C',
+  textOverlay: 'Overlay C',
+  branding: '',
+  negativeConstraints: 'No clutter',
+  finalPrompt: 'Prompt Angle C',
+});
 
 assert(
   candA_B13.final_prompt !== candB_B13.final_prompt &&
@@ -3598,7 +3642,7 @@ const resB_B13 = prepareProductionPackage({
 assert(
   resB_B13.ok === true &&
   resB_B13.package.asset_type === 'image' &&
-  resB_B13.package.asset.final_prompt === 'Prompt Angle B',
+  resB_B13.package.final_prompt === 'Prompt Angle B',
   'Test P3D-B-13b: Clicked Angle B explicitly selects candidate B package'
 );
 
@@ -3618,7 +3662,21 @@ assert(
 );
 
 // P3D-B-15: Duplicate candidate ID -> closed fail
-const candDup_B15 = buildImageProductionCandidate({ candidate_id: 'A', finalPrompt: 'Prompt Angle A Duplicate', visualObjective: 'Obj A Dup' });
+const candDup_B15 = buildImageProductionCandidate({
+  candidate_id: 'A',
+  visualObjective: 'Duplicate Objective',
+  scene: 'Duplicate Scene',
+  subject: 'Duplicate Subject',
+  composition: 'Duplicate Composition',
+  environment: 'Duplicate Environment',
+  lighting: 'Duplicate Lighting',
+  camera: 'Duplicate Camera',
+  visualStyle: 'Duplicate Style',
+  textOverlay: 'Duplicate Overlay',
+  branding: '',
+  negativeConstraints: 'No clutter',
+  finalPrompt: 'Prompt Angle A Duplicate',
+});
 const resDup_B15 = prepareProductionPackage({
   projectId: p3daProjectId,
   sharedContext: p3daSharedContext,

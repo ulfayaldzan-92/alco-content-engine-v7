@@ -4110,9 +4110,9 @@ export default function ProductionStudioPage() {
       return;
     }
 
-    const candidates: ProductionCandidate[] = imageAnglesPackage.angles
+    const candidates: ImageProductionCandidate[] = imageAnglesPackage.angles
       .map(a => a.productionCandidate)
-      .filter((c): c is ProductionCandidate => Boolean(c));
+      .filter((c): c is ImageProductionCandidate => Boolean(c));
 
     if (candidates.length === 0) {
       setImageGenerateError('Tidak ada production candidate valid di dalam Image output. Production package diblokir.');
