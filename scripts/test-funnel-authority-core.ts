@@ -3321,7 +3321,7 @@ const p3daRes08 = prepareProductionPackage({
   metadata: p3daMetadata,
 });
 assert(
-  p3daRes08.ok === false && p3daRes08.error.includes('Project Identity Mismatch'),
+  p3daRes08.ok === false && p3daRes08.error.includes('Project Isolation Violation'),
   'Test P3D-A-08: Cross-project FunnelStrategy fails workflow'
 );
 
