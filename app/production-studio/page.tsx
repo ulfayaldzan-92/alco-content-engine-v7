@@ -31,6 +31,7 @@ import {
   buildCarouselProductionCandidate,
   buildVideoProductionCandidate,
   buildCanonicalVideoScenePlan,
+  resolveVideoProductionMode,
 } from '@/lib/production-candidate';
 import { CarouselSlideProductionPlan } from '@/lib/production-contract';
 import { 
@@ -1158,7 +1159,8 @@ const sanitizeAndAlignImageAngle = (
   globalFunnelStage: string,
   coreHeadline: string,
   angleIndex: number,
-  activeContext?: any
+  activeContext?: any,
+  attachProductionCandidate: boolean = true
 ): ImageAngle => {
   const requiredIds: Array<'A' | 'B' | 'C'> = ['A', 'B', 'C'];
   const rawId = (item.id || requiredIds[angleIndex] || 'A').toString().toUpperCase().trim();
@@ -1456,21 +1458,23 @@ Negative Prompt: hard selling ads, cluttered poster, too much text, generic stoc
     pesanVisual: String(rawBrief.pesanVisual || rawBrief.pesan_visual || visualObjective).trim(),
   };
 
-  const productionCandidate = buildImageProductionCandidate({
-    candidate_id: id,
-    visualObjective,
-    scene: `${action} ${expression}`.trim(),
-    subject,
-    composition,
-    environment,
-    lighting,
-    camera,
-    visualStyle,
-    textOverlay,
-    branding: '',
-    negativeConstraints: 'hard selling ads, cluttered poster, too much text, generic stock photo, unreadable text, distorted face, extra fingers, corporate cliche, overdesigned graphic.',
-    finalPrompt,
-  });
+  const productionCandidate = attachProductionCandidate
+    ? buildImageProductionCandidate({
+        candidate_id: id,
+        visualObjective,
+        scene: `${action} ${expression}`.trim(),
+        subject,
+        composition,
+        environment,
+        lighting,
+        camera,
+        visualStyle,
+        textOverlay,
+        branding: '',
+        negativeConstraints: 'hard selling ads, cluttered poster, too much text, generic stock photo, unreadable text, distorted face, extra fingers, corporate cliche, overdesigned graphic.',
+        finalPrompt,
+      })
+    : undefined;
 
   return {
     id,
@@ -1497,7 +1501,8 @@ Negative Prompt: hard selling ads, cluttered poster, too much text, generic stoc
 const validateAndNormalizeImageAngles = (
   rawText: string,
   activeItem?: any,
-  activeContext?: any
+  activeContext?: any,
+  attachProductionCandidate: boolean = true
 ): string | null => {
   if (!rawText) return null;
   const parsed = tryParseJSON(rawText);
@@ -1544,7 +1549,14 @@ const validateAndNormalizeImageAngles = (
     const item = anglesArray[i];
     if (!item || typeof item !== 'object') continue;
 
-    const alignedAngle = sanitizeAndAlignImageAngle(item, funnelStage, coreHeadline, validAngles.length, activeContext);
+    const alignedAngle = sanitizeAndAlignImageAngle(
+      item,
+      funnelStage,
+      coreHeadline,
+      validAngles.length,
+      activeContext,
+      attachProductionCandidate
+    );
     validAngles.push(alignedAngle);
   }
 
@@ -1555,7 +1567,14 @@ const validateAndNormalizeImageAngles = (
   // Ensure we have 3 angles if at least 1 valid angle was found
   while (validAngles.length < 3) {
     const nextIndex = validAngles.length;
-    const placeholder = sanitizeAndAlignImageAngle({}, funnelStage, coreHeadline, nextIndex, activeContext);
+    const placeholder = sanitizeAndAlignImageAngle(
+      {},
+      funnelStage,
+      coreHeadline,
+      nextIndex,
+      activeContext,
+      attachProductionCandidate
+    );
     validAngles.push(placeholder);
   }
 
@@ -2023,7 +2042,8 @@ Negative Prompt: ${negativePrompt}`;
 const validateAndNormalizeCarouselPlan = (
   rawText: string,
   activeItem?: any,
-  activeContext?: any
+  activeContext?: any,
+  attachProductionCandidate: boolean = true
 ): string | null => {
   if (!rawText) return null;
   const parsed = tryParseJSON(rawText);
@@ -2401,22 +2421,24 @@ Image/Illustration Direction: ${visualFormat === 'infographic' ? 'Clean modern e
     normalizedSlides[0]?.visual_production?.composition ||
     'Visual editorial cover carousel';
 
-  const carouselCandidate = buildCarouselProductionCandidate({
-    candidate_id: 'carousel_plan',
-    objective: rawGoal,
-    slide_count: normalizedSlides.length,
-    cover_direction: coverDirection,
-    slides: slidePlans,
-    visual_continuity: visualSystemNotes,
-    branding: '',
-    negative_constraints:
-      normalizedSlides[0]?.visual_production?.negative_prompt ||
-      'hard selling ads, cluttered poster, blurry text',
-    final_prompts: {
-      master_prompt: visualSystemNotes,
-      slides: slidePrompts,
-    },
-  });
+  const carouselCandidate = attachProductionCandidate
+    ? buildCarouselProductionCandidate({
+        candidate_id: 'carousel_plan',
+        objective: rawGoal,
+        slide_count: normalizedSlides.length,
+        cover_direction: coverDirection,
+        slides: slidePlans,
+        visual_continuity: visualSystemNotes,
+        branding: '',
+        negative_constraints:
+          normalizedSlides[0]?.visual_production?.negative_prompt ||
+          'hard selling ads, cluttered poster, blurry text',
+        final_prompts: {
+          master_prompt: visualSystemNotes,
+          slides: slidePrompts,
+        },
+      })
+    : undefined;
 
   const canonicalPlan: CarouselPlan = {
     content_goal: rawGoal,
@@ -2822,7 +2844,8 @@ ${cta}`;
 function validateAndNormalizeVideoStyles(
   rawText: string,
   activeItem?: ContentItem | null,
-  activeContext?: SharedContentContext | null
+  activeContext?: SharedContentContext | null,
+  attachProductionCandidate: boolean = true
 ): string | null {
   try {
     let parsed = tryParseJSON(rawText);
@@ -2872,17 +2895,19 @@ function validateAndNormalizeVideoStyles(
       const captionInstruction = String(v.captionInstruction || v.caption_instruction || defaultCaptionInstruction).trim() || defaultCaptionInstruction;
 
       const scenes = buildCanonicalVideoScenePlan(funnelStage, script);
-      const productionCandidate = buildVideoProductionCandidate({
-        candidate_id: `video_style_${id}`,
-        production_mode: 'ugc_video',
-        objective: activeItem?.tujuan || funnelRules.goal || 'Video produksi terstruktur',
-        format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
-        hook: script.hook,
-        scenes,
-        motion_direction: pacingStyle,
-        audio_direction: audioDirection,
-        final_prompt: videoPrompt || `Video Production Plan for ${name} (${funnelStage})`,
-      });
+      const productionCandidate = attachProductionCandidate
+        ? buildVideoProductionCandidate({
+            candidate_id: `video_style_${id}`,
+            production_mode: resolveVideoProductionMode(id),
+            objective: activeItem?.tujuan || funnelRules.goal || 'Video produksi terstruktur',
+            format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
+            hook: script.hook,
+            scenes,
+            motion_direction: pacingStyle,
+            audio_direction: audioDirection,
+            final_prompt: videoPrompt,
+          })
+        : undefined;
 
       return {
         id,
@@ -3364,7 +3389,7 @@ Negative Prompt: hard selling ads, cluttered poster, too much text, generic stoc
 
     case 'carousel': {
       if (activeItem?.carousel_plan) {
-        const normalizedExisting = validateAndNormalizeCarouselPlan(JSON.stringify(activeItem.carousel_plan), activeItem, activeContext);
+        const normalizedExisting = validateAndNormalizeCarouselPlan(JSON.stringify(activeItem.carousel_plan), activeItem, activeContext, false);
         if (normalizedExisting) return normalizedExisting;
         return JSON.stringify(activeItem.carousel_plan, null, 2);
       }
@@ -3815,9 +3840,7 @@ export default function ProductionStudioPage() {
 
   const handleSelectVideoStyle = (styleId: 'A' | 'B' | 'C') => {
     setSelectedVideoId(styleId);
-    if (styleId === 'A') setVideoMode('ugc_video');
-    else if (styleId === 'B') setVideoMode('text_motion');
-    else if (styleId === 'C') setVideoMode('asset_product');
+    setVideoMode(resolveVideoProductionMode(styleId));
   };
 
   const handleRenderVideo = async (activeVideo: VideoStyle) => {
@@ -5088,7 +5111,7 @@ ${formatDirection}${revisionDirective}`;
   const imageAnglesPackage = useMemo<ImageAnglesPackage | null>(() => {
     if (!activeItem) return null;
     const textToParse = imageOutput || getInitialDraft('image', activeItem, activeContext);
-    const normalizedJson = validateAndNormalizeImageAngles(textToParse, activeItem, activeContext);
+    const normalizedJson = validateAndNormalizeImageAngles(textToParse, activeItem, activeContext, Boolean(imageOutput));
     if (!normalizedJson) {
       const fallbackParsed = tryParseJSON(textToParse);
       if (!fallbackParsed) return null;
@@ -5120,7 +5143,7 @@ ${formatDirection}${revisionDirective}`;
 
       const fallbackStage = normalizeFunnelStage(activeItem?.jenis);
       const formattedAngles: ImageAngle[] = list.map((item: any, i: number) => {
-        return sanitizeAndAlignImageAngle(item, fallbackStage, activeItem?.headline || '', i);
+        return sanitizeAndAlignImageAngle(item, fallbackStage, activeItem?.headline || '', i, activeContext, Boolean(imageOutput));
       });
 
       return {

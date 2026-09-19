@@ -6,7 +6,6 @@ import {
   VideoProductionDetails,
   VideoSceneProductionPlan,
 } from './production-contract';
-import { sanitizeCtaForFunnel, getVoiceoverCtaForFunnel } from './funnel-rules';
 import { FunnelStage } from './content-contract';
 
 // ============================================================================
@@ -46,12 +45,55 @@ export interface ProductionCandidateValidationResult {
   error?: string;
 }
 
+/**
+ * Maps Video Style ID (A, B, C) deterministically to canonical production mode.
+ */
+export function resolveVideoProductionMode(
+  id: string
+): 'ugc_video' | 'text_motion' | 'asset_product' {
+  if (!id || typeof id !== 'string') return 'ugc_video';
+  const cleanId = id.trim().toUpperCase();
+  if (
+    cleanId === 'A' ||
+    cleanId.startsWith('STYLE A') ||
+    cleanId.startsWith('STYLE_A') ||
+    cleanId.startsWith('OPTION A') ||
+    cleanId.startsWith('A:') ||
+    cleanId.startsWith('A -')
+  ) {
+    return 'ugc_video';
+  }
+  if (
+    cleanId === 'B' ||
+    cleanId.startsWith('STYLE B') ||
+    cleanId.startsWith('STYLE_B') ||
+    cleanId.startsWith('OPTION B') ||
+    cleanId.startsWith('B:') ||
+    cleanId.startsWith('B -')
+  ) {
+    return 'text_motion';
+  }
+  if (
+    cleanId === 'C' ||
+    cleanId.startsWith('STYLE C') ||
+    cleanId.startsWith('STYLE_C') ||
+    cleanId.startsWith('OPTION C') ||
+    cleanId.startsWith('C:') ||
+    cleanId.startsWith('C -')
+  ) {
+    return 'asset_product';
+  }
+  return 'ugc_video';
+}
+
 // Forbidden fields that belong strictly to ProductionPackage authority layer (Phase 3B)
 const FORBIDDEN_AUTHORITY_FIELDS = [
   'project_id',
   'content_item_id',
+  'calendar_item_id',
   'strategy_snapshot',
   'content_snapshot',
+  'brand_visual_snapshot',
   'production_status',
   'package_id',
   'created_at',
@@ -183,6 +225,28 @@ export function validateProductionCandidate(
       };
     }
 
+    const validSlideRoles = new Set([
+      'hook',
+      'problem',
+      'reframe',
+      'solution',
+      'how_it_works',
+      'framework',
+      'proof',
+      'value',
+      'cta',
+      'learn',
+      'content',
+      'bridge',
+      'case_study',
+      'comparison',
+      'action',
+      'checklist',
+      'takeaway',
+      'quote',
+      'cover',
+    ]);
+
     for (let i = 0; i < slides.length; i++) {
       const slide = slides[i];
       if (!slide || typeof slide !== 'object') {
@@ -193,6 +257,9 @@ export function validateProductionCandidate(
           isValid: false,
           error: `Slide at index ${i} has invalid slide_number ${slide.slide_number}, expected ${i + 1}`,
         };
+      }
+      if (typeof slide.role !== 'string' || !validSlideRoles.has(slide.role.toLowerCase().trim())) {
+        return { isValid: false, error: `Slide ${i + 1} has invalid role: ${slide.role}` };
       }
       const requiredSlideFields: Array<keyof CarouselSlideProductionPlan> = [
         'role',
@@ -431,7 +498,7 @@ export function buildCanonicalVideoScenePlan(
   }
 ): VideoSceneProductionPlan[] {
   const stage = funnelStage;
-  const voiceoverCta = getVoiceoverCtaForFunnel(script?.cta ?? '', stage);
+  const voiceoverCta = typeof script?.cta === 'string' ? script.cta : '';
 
   if (stage === 'BOFU') {
     return [
@@ -575,7 +642,7 @@ export function buildVideoProductionCandidate(params: {
   candidate_id: string;
   production_mode: 'ugc_video' | 'text_motion' | 'asset_product';
   objective: string;
-  format: string;
+  format?: string;
   hook: string;
   scenes: VideoSceneProductionPlan[];
   voiceover?: string;
@@ -598,7 +665,7 @@ export function buildVideoProductionCandidate(params: {
     production_details: {
       objective: params.objective,
       duration_seconds: totalDuration,
-      format: params.format,
+      format: params.format ?? '9:16 Vertical Video (Reels/TikTok/Shorts)',
       hook: params.hook,
       scenes: params.scenes,
       voiceover: combinedVoiceover,

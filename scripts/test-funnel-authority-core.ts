@@ -64,6 +64,7 @@ import {
   buildCarouselProductionCandidate,
   buildVideoProductionCandidate,
   buildCanonicalVideoScenePlan,
+  resolveVideoProductionMode,
 } from '../lib/production-candidate';
 
 const projectRoot = process.cwd();
@@ -2362,8 +2363,12 @@ const videoModeResults = videoModes.map((mode) => {
     candidate_id: `vid_cand_${mode}`,
     production_mode: mode,
     objective: 'Video awareness terarah',
+    format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
     hook: 'Hook video menarik',
     scenes: validVideoScenes,
+    motion_direction: 'Dynamic smooth motion',
+    audio_direction: 'Natural voiceover & background music',
+    negative_constraints: 'No blurry video, no distorted faces',
     final_prompt: `Video Prompt for ${mode}`,
   });
   return validateProductionCandidate(cand);
@@ -2483,6 +2488,7 @@ const builtCarouselCand = buildCarouselProductionCandidate({
   cover_direction: 'Cover direction',
   slides: validCarouselCand.production_details.slides,
   visual_continuity: 'Continuity notes',
+  negative_constraints: 'hard selling ads, cluttered poster, blurry text',
   final_prompts: validCarouselCand.final_prompts,
 });
 const p3ca10Val = validateProductionCandidate(builtCarouselCand);
@@ -2496,8 +2502,12 @@ const builtVideoCand = buildVideoProductionCandidate({
   candidate_id: 'video_style_A',
   production_mode: 'ugc_video',
   objective: 'Video goal',
+  format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
   hook: 'Video hook',
   scenes: validVideoScenes,
+  motion_direction: 'Fast-paced dynamic',
+  audio_direction: 'Upbeat background audio',
+  negative_constraints: 'No blurry frames, no low resolution',
   final_prompt: 'Video prompt',
 });
 const p3ca11Val = validateProductionCandidate(builtVideoCand);
@@ -2510,6 +2520,7 @@ assert(
 const inputScenesClone = JSON.parse(JSON.stringify(validVideoScenes));
 buildVideoProductionCandidate({
   candidate_id: 'video_purity_test',
+  production_mode: 'ugc_video',
   objective: 'Purity objective',
   hook: 'Purity hook',
   scenes: validVideoScenes,
@@ -2518,6 +2529,186 @@ buildVideoProductionCandidate({
 assert(
   JSON.stringify(validVideoScenes) === JSON.stringify(inputScenesClone),
   'Test P3C-A-12: Candidate builder operates purely without mutating input parameters'
+);
+
+// P3C-A-13: resolveVideoProductionMode maps Style A to ugc_video
+assert(
+  resolveVideoProductionMode('A') === 'ugc_video',
+  'Test P3C-A-13: resolveVideoProductionMode maps Style A strictly to ugc_video'
+);
+
+// P3C-A-14: resolveVideoProductionMode maps Style B to text_motion
+assert(
+  resolveVideoProductionMode('B') === 'text_motion',
+  'Test P3C-A-14: resolveVideoProductionMode maps Style B strictly to text_motion'
+);
+
+// P3C-A-15: resolveVideoProductionMode maps Style C to asset_product
+assert(
+  resolveVideoProductionMode('C') === 'asset_product',
+  'Test P3C-A-15: resolveVideoProductionMode maps Style C strictly to asset_product'
+);
+
+// P3C-A-16: resolveVideoProductionMode handles case-insensitivity, prefixes, and defaults
+assert(
+  resolveVideoProductionMode('style_a') === 'ugc_video' &&
+  resolveVideoProductionMode('Style B (TikTok Loop)') === 'text_motion' &&
+  resolveVideoProductionMode('Option C') === 'asset_product' &&
+  resolveVideoProductionMode('unknown_style') === 'ugc_video',
+  'Test P3C-A-16: resolveVideoProductionMode handles case-insensitivity, prefixes, and fallback cleanly'
+);
+
+// P3C-A-17: buildCanonicalVideoScenePlan respects exact raw CTA in TOFU
+const tofuScenePlan = buildCanonicalVideoScenePlan('TOFU', {
+  hook: 'Hook TOFU',
+  masalah: 'Masalah TOFU',
+  solusi: 'Solusi TOFU',
+  cta: 'Simpan postingan ini untuk nanti',
+});
+assert(
+  tofuScenePlan[3].on_screen_text.includes('Simpan postingan ini untuk nanti') &&
+  tofuScenePlan[3].voiceover.includes('Simpan postingan ini untuk nanti'),
+  'Test P3C-A-17: buildCanonicalVideoScenePlan uses exact provided CTA without inventing text in TOFU'
+);
+
+// P3C-A-18: buildCanonicalVideoScenePlan respects exact raw CTA in BOFU
+const bofuScenePlan = buildCanonicalVideoScenePlan('BOFU', {
+  hook: 'Hook BOFU',
+  masalah: 'Masalah BOFU',
+  solusi: 'Solusi BOFU',
+  cta: 'Daftar sekarang melalui link di bio',
+});
+assert(
+  bofuScenePlan[3].on_screen_text.includes('Daftar sekarang melalui link di bio') &&
+  bofuScenePlan[3].voiceover.includes('Daftar sekarang melalui link di bio'),
+  'Test P3C-A-18: buildCanonicalVideoScenePlan uses exact provided CTA without inventing text in BOFU'
+);
+
+// P3C-A-19: Candidate validator rejects ImageProductionCandidate missing visualObjective or scene
+const missingSceneImg = {
+  ...validImageCand,
+  production_details: {
+    ...validImageCand.production_details,
+    scene: '',
+  },
+};
+const p3ca19Val = validateProductionCandidate(missingSceneImg);
+assert(
+  !p3ca19Val.isValid && p3ca19Val.error?.includes('scene'),
+  'Test P3C-A-19: Image candidate with empty scene fails validation fail-closed'
+);
+
+// P3C-A-20: Candidate validator rejects ImageProductionCandidate missing final_prompt
+const missingPromptImg = {
+  ...validImageCand,
+  final_prompt: '',
+};
+const p3ca20Val = validateProductionCandidate(missingPromptImg);
+assert(
+  !p3ca20Val.isValid && p3ca20Val.error?.includes('final_prompt'),
+  'Test P3C-A-20: Image candidate with empty final_prompt fails validation fail-closed'
+);
+
+// P3C-A-21: Candidate validator rejects CarouselProductionCandidate with non-positive slide_count
+const nonPositiveSlidesCarousel = {
+  ...validCarouselCand,
+  production_details: {
+    ...validCarouselCand.production_details,
+    slide_count: 0,
+    slides: [],
+  },
+  final_prompts: {
+    master_prompt: 'Master',
+    slides: [],
+  },
+};
+const p3ca21Val = validateProductionCandidate(nonPositiveSlidesCarousel);
+assert(
+  !p3ca21Val.isValid && p3ca21Val.error?.includes('slide_count'),
+  'Test P3C-A-21: Carousel candidate with non-positive slide_count fails validation fail-closed'
+);
+
+// P3C-A-22: Candidate validator rejects CarouselProductionCandidate with invalid slide role
+const invalidRoleCarousel = {
+  ...validCarouselCand,
+  production_details: {
+    ...validCarouselCand.production_details,
+    slides: [
+      { slide_number: 1, role: 'invalid_role_xyz' as any, headline: 'H', visual_direction: 'V', layout_direction: 'L' },
+      ...validCarouselCand.production_details.slides.slice(1),
+    ],
+  },
+};
+const p3ca22Val = validateProductionCandidate(invalidRoleCarousel);
+assert(
+  !p3ca22Val.isValid && p3ca22Val.error?.includes('role'),
+  'Test P3C-A-22: Carousel candidate with invalid slide role fails validation fail-closed'
+);
+
+// P3C-A-23: Candidate validator rejects CarouselProductionCandidate with empty master_prompt
+const emptyMasterPromptCarousel = {
+  ...validCarouselCand,
+  final_prompts: {
+    ...validCarouselCand.final_prompts,
+    master_prompt: '',
+  },
+};
+const p3ca23Val = validateProductionCandidate(emptyMasterPromptCarousel);
+assert(
+  !p3ca23Val.isValid && p3ca23Val.error?.includes('master_prompt'),
+  'Test P3C-A-23: Carousel candidate with empty master_prompt fails validation fail-closed'
+);
+
+// P3C-A-24: Candidate validator rejects VideoProductionCandidate with invalid production_mode
+const invalidModeVideo = {
+  ...validVideoCand,
+  production_mode: 'unsupported_mode_xyz' as any,
+};
+const p3ca24Val = validateProductionCandidate(invalidModeVideo);
+assert(
+  !p3ca24Val.isValid && p3ca24Val.error?.includes('production_mode'),
+  'Test P3C-A-24: Video candidate with invalid production_mode fails validation fail-closed'
+);
+
+// P3C-A-25: Candidate validator rejects VideoProductionCandidate with empty hook or final_prompt
+const missingHookVideo = {
+  ...validVideoCand,
+  production_details: {
+    ...validVideoCand.production_details,
+    hook: '',
+  },
+};
+const p3ca25Val = validateProductionCandidate(missingHookVideo);
+assert(
+  !p3ca25Val.isValid && p3ca25Val.error?.includes('hook'),
+  'Test P3C-A-25: Video candidate with empty hook fails validation fail-closed'
+);
+
+// P3C-A-26: Candidate validator rejects candidate containing package authority fields (content_item_id, calendar_item_id)
+const leakedItemCand = {
+  ...validVideoCand,
+  content_item_id: 'item_123',
+};
+const p3ca26Val = validateProductionCandidate(leakedItemCand);
+assert(
+  !p3ca26Val.isValid && p3ca26Val.error?.includes('authoritative package field: content_item_id'),
+  'Test P3C-A-26: Candidate containing content_item_id fails validation fail-closed'
+);
+
+// P3C-A-27: Studio page.tsx source audit confirms getInitialDraft does not attach productionCandidate authority
+const studioPageContent = fs.readFileSync(path.join(projectRoot, 'app', 'production-studio', 'page.tsx'), 'utf8');
+assert(
+  studioPageContent.includes('validateAndNormalizeCarouselPlan(JSON.stringify(activeItem.carousel_plan), activeItem, activeContext, false)') &&
+  !studioPageContent.includes('initialPlan.productionCandidate') &&
+  !studioPageContent.includes('vStyles[0].productionCandidate'),
+  'Test P3C-A-27: Production Studio getInitialDraft strictly produces UI previews without authoritative productionCandidate'
+);
+
+// P3C-A-28: Studio page.tsx normalizers accept attachProductionCandidate flag and use resolveVideoProductionMode
+assert(
+  studioPageContent.includes('attachProductionCandidate: boolean = true') &&
+  studioPageContent.includes('resolveVideoProductionMode(id)'),
+  'Test P3C-A-28: Production Studio normalizers accept attachProductionCandidate flag and use resolveVideoProductionMode'
 );
 
 // -------------------------------------------------------------
