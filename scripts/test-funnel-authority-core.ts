@@ -66,6 +66,11 @@ import {
   buildCanonicalVideoScenePlan,
   resolveVideoProductionMode,
 } from '../lib/production-candidate';
+import {
+  adaptProductionCandidateToAssetInput,
+  selectProductionCandidate,
+  selectSingleCarouselCandidate,
+} from '../lib/production-candidate-adapter';
 import { isAuthoritativeProductionOutputSource } from '../lib/production-output-source';
 
 const projectRoot = process.cwd();
@@ -2835,6 +2840,166 @@ assert(
   !emptySlideLayoutCarouselVal.isValid && emptySlideLayoutCarouselVal.error?.includes('layout_direction'),
   'Test P3C-A-37: validateProductionCandidate rejects Carousel candidate with empty slide layout_direction fail-closed'
 );
+
+// ============================================================================
+// PHASE 3C-B: ADAPTER & SELECTION BOUNDARY TESTS
+// ============================================================================
+
+// P3C-B-01: Image candidate adapter happy path
+const validImageCand = buildImageProductionCandidate({
+  candidate_id: 'img_cand_1',
+  objective: 'Obj',
+  scene: 'Scene',
+  subject: 'Subj',
+  composition: 'Comp',
+  environment: 'Env',
+  lighting: 'Light',
+  camera_direction: 'Cam',
+  visual_style: 'Style',
+  text_overlay: '',
+  branding: '',
+  negative_constraints: 'No blur',
+  final_prompt: 'Final Prompt Image',
+});
+const imageAdapterRes = adaptProductionCandidateToAssetInput(validImageCand);
+assert(
+  imageAdapterRes.ok === true &&
+  imageAdapterRes.assetInput.asset_type === 'image' &&
+  imageAdapterRes.assetInput.image === validImageCand.production_details &&
+  imageAdapterRes.assetInput.final_prompt === 'Final Prompt Image',
+  'Test P3C-B-01: Image candidate converts to ProductionAssetInput accurately'
+);
+
+// P3C-B-02: Carousel candidate adapter happy path
+const validCarouselCand = buildCarouselProductionCandidate({
+  candidate_id: 'carousel_plan',
+  objective: 'Obj',
+  slide_count: 1,
+  cover_direction: 'Cover',
+  slides: [{ slide_number: 1, role: 'hook', headline: 'H', body: 'B', visual_direction: 'V', layout_direction: 'L' }],
+  visual_continuity: 'Cont',
+  branding: '',
+  negative_constraints: 'No blur',
+  final_prompts: { master_prompt: 'M', slides: [{ slide_number: 1, prompt: 'P' }] },
+});
+const carouselAdapterRes = adaptProductionCandidateToAssetInput(validCarouselCand);
+assert(
+  carouselAdapterRes.ok === true &&
+  carouselAdapterRes.assetInput.asset_type === 'carousel' &&
+  carouselAdapterRes.assetInput.carousel === validCarouselCand.production_details &&
+  carouselAdapterRes.assetInput.final_prompts === validCarouselCand.final_prompts,
+  'Test P3C-B-02: Carousel candidate converts to ProductionAssetInput accurately'
+);
+
+// P3C-B-03: Video candidate adapter happy path (ugc_video, text_motion, asset_product -> all asset_type 'video')
+const videoModes: Array<'ugc_video' | 'text_motion' | 'asset_product'> = ['ugc_video', 'text_motion', 'asset_product'];
+for (const mode of videoModes) {
+  const videoCand = buildVideoProductionCandidate({
+    candidate_id: `video_cand_${mode}`,
+    production_mode: mode,
+    objective: 'Obj',
+    format: '9:16',
+    hook: 'Hook',
+    scenes: [{ scene_number: 1, duration_seconds: 5, purpose: 'P', visual_direction: 'V', action: 'A', camera: 'C', voiceover: 'VO', on_screen_text: 'TXT' }],
+    negative_constraints: 'No blur',
+    final_prompt: 'Final Prompt Video',
+  });
+  const videoAdapterRes = adaptProductionCandidateToAssetInput(videoCand);
+  assert(
+    videoAdapterRes.ok === true &&
+    videoAdapterRes.assetInput.asset_type === 'video' &&
+    videoAdapterRes.assetInput.video === videoCand.production_details &&
+    videoAdapterRes.assetInput.final_prompt === 'Final Prompt Video',
+    `Test P3C-B-03 (${mode}): Video candidate converts to asset_type 'video'`
+  );
+}
+
+// P3C-B-04: Invalid candidate fails adaptation without repair
+const invalidImageCand = {
+  ...validImageCand,
+  production_details: { ...validImageCand.production_details, objective: '' },
+};
+const invalidAdapterRes = adaptProductionCandidateToAssetInput(invalidImageCand as any);
+assert(
+  invalidAdapterRes.ok === false && invalidAdapterRes.error !== undefined,
+  'Test P3C-B-04: Invalid candidate fails adaptation fail-closed'
+);
+
+// P3C-B-05: Authority field leak fails adaptation
+const authorityLeakingCand = {
+  ...validImageCand,
+  project_id: 'proj_123',
+};
+const leakAdapterRes = adaptProductionCandidateToAssetInput(authorityLeakingCand as any);
+assert(
+  leakAdapterRes.ok === false && leakAdapterRes.error?.includes('authoritative package field'),
+  'Test P3C-B-05: Candidate leaking authority field fails adaptation fail-closed'
+);
+
+// P3C-B-06: Explicit selection selects correct candidate by ID
+const candidatesList: ProductionCandidate[] = [
+  { ...validImageCand, candidate_id: 'option_a' },
+  { ...validImageCand, candidate_id: 'option_b' },
+  { ...validImageCand, candidate_id: 'option_c' },
+];
+const selectedRes = selectProductionCandidate(candidatesList, 'option_b');
+assert(
+  selectedRes.ok === true && selectedRes.assetInput.asset_type === 'image',
+  'Test P3C-B-06: selectProductionCandidate explicitly selects candidate B'
+);
+
+// P3C-B-07: Unknown selectedCandidateId fails
+const unknownIdRes = selectProductionCandidate(candidatesList, 'option_unknown');
+assert(
+  unknownIdRes.ok === false && unknownIdRes.error?.includes('not found'),
+  'Test P3C-B-07: selectProductionCandidate fails when selectedCandidateId is unknown'
+);
+
+// P3C-B-08: Empty selectedCandidateId fails
+const emptyIdRes = selectProductionCandidate(candidatesList, '   ');
+assert(
+  emptyIdRes.ok === false && emptyIdRes.error?.includes('non-empty string'),
+  'Test P3C-B-08: selectProductionCandidate fails when selectedCandidateId is empty'
+);
+
+// P3C-B-09: Duplicate candidate IDs in array fail
+const duplicateCandidatesList: ProductionCandidate[] = [
+  { ...validImageCand, candidate_id: 'option_dup' },
+  { ...validImageCand, candidate_id: 'option_dup' },
+];
+const duplicateIdRes = selectProductionCandidate(duplicateCandidatesList, 'option_dup');
+assert(
+  duplicateIdRes.ok === false && duplicateIdRes.error?.includes('Duplicate candidate ID'),
+  'Test P3C-B-09: selectProductionCandidate fails when duplicate candidate IDs exist'
+);
+
+// P3C-B-10: Adapter source audit confirms no candidates[0] fallback pattern
+const adapterSourceContent = fs.readFileSync(path.join(projectRoot, 'lib', 'production-candidate-adapter.ts'), 'utf8');
+assert(
+  !adapterSourceContent.includes('candidates[0]') && !adapterSourceContent.includes('find(') || !adapterSourceContent.includes('|| candidates[0]'),
+  'Test P3C-B-10: production-candidate-adapter.ts source does not use candidates[0] fallback pattern'
+);
+
+// P3C-B-11: Adapter function is pure and does not mutate candidate input
+const candidateCloneBefore = JSON.parse(JSON.stringify(validImageCand));
+adaptProductionCandidateToAssetInput(validImageCand);
+const candidateCloneAfter = JSON.parse(JSON.stringify(validImageCand));
+assert(
+  JSON.stringify(candidateCloneBefore) === JSON.stringify(candidateCloneAfter),
+  'Test P3C-B-11: adaptProductionCandidateToAssetInput does not mutate candidate input object'
+);
+
+// P3C-B-12: Output assetInput does not contain package authority fields
+if (imageAdapterRes.ok) {
+  const assetInputObj = imageAdapterRes.assetInput as Record<string, any>;
+  const forbiddenFields = ['package_id', 'project_id', 'content_item_id', 'created_at', 'production_status', 'strategy_snapshot', 'content_snapshot', 'brand_visual_snapshot'];
+  for (const f of forbiddenFields) {
+    assert(
+      !(f in assetInputObj),
+      `Test P3C-B-12: ProductionAssetInput must not contain package authority field ${f}`
+    );
+  }
+}
 
 // -------------------------------------------------------------
 // RESULTS SUMMARY
