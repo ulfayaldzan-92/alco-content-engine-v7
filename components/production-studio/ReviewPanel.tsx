@@ -217,7 +217,7 @@ export default function ReviewPanel(props: any) {
               <ArrowRight size={12} className="text-stone-400 group-hover:text-primary group-hover:translate-x-0.5 transition" />
             </div>
             <p className="text-[11px] text-stone-500 line-clamp-2 leading-relaxed">
-              Naskah monolog dialog, 3 scene Google Flow, dan opsi render JSON2Video.
+              Naskah monolog dialog dan 3 scene Google Flow.
             </p>
           </button>
         </div>

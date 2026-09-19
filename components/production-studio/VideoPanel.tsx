@@ -5,12 +5,8 @@ import {
   Loader2,
   Copy,
   Check,
-  Zap,
   Video,
-  Clipboard,
   Sliders,
-  AlertCircle,
-  RefreshCw,
   ExternalLink,
   PlayCircle,
   MessageSquare,
@@ -20,8 +16,6 @@ import {
   Layers,
   ArrowRight,
 } from 'lucide-react';
-import { Json2VideoApiKeyControl } from '@/components/Json2VideoApiKeyControl';
-import { VideoAssetUrlInput } from '@/components/VideoAssetUrlInput';
 import { PromptNextStepLinks } from './PromptNextStepLinks';
 import CharacterSelector from './CharacterSelector';
 import { countWords } from '@/lib/funnel-rules';
@@ -43,27 +37,9 @@ export default function VideoPanel(props: any) {
     handleSelectVideoStyle,
     videoMode,
     setVideoMode,
-    characterImageUrl,
-    setCharacterImageUrl,
-    productScreenImageUrl,
-    setProductScreenImageUrl,
-    coverImageUrl,
-    setCoverImageUrl,
-    videoOutputMode,
-    setVideoOutputMode,
-    showToast,
-    handleGenerateJson2VideoPayload,
-    isRenderingVideo,
-    renderJobId,
-    renderJobData,
-    renderError,
-    isCheckingStatus,
     flowCustomCreator,
     flowCustomSetting,
     flowCustomDialogues,
-    handleRenderVideo,
-    handleCheckRenderStatus,
-    json2VideoPayload,
     characterDNA,
     getGoogleFlowVideoPack,
     savedCharacters,
@@ -98,8 +74,8 @@ export default function VideoPanel(props: any) {
   const activeVideo = videoStyles.find((v) => v.id === selectedVideoId) || videoStyles[0];
   const videoFunnelStage = normalizeFunnelStage(activeItem.jenis);
 
-  // Default mode to google_flow if not explicitly selected, while allowing instant toggle
-  const currentOutputMode = videoOutputMode || 'google_flow';
+  // Default mode to google_flow
+  const currentOutputMode = 'google_flow';
 
   const googleFlowScenes = getGoogleFlowVideoPack(
     videoFunnelStage,
@@ -178,8 +154,7 @@ export default function VideoPanel(props: any) {
       </div>
 
       {/* 2. WORKSPACE: GOOGLE FLOW 3-SCENE PRODUCTION */}
-      {currentOutputMode === 'google_flow' && (
-        <div className="space-y-4">
+      <div className="space-y-4">
           
           {/* Scene Navigation Bar */}
           <div className="bg-[#f6f3ee] border border-[#e7e0d4] p-2 rounded-2xl flex flex-wrap items-center justify-between gap-2 shadow-xs">
@@ -227,8 +202,8 @@ export default function VideoPanel(props: any) {
             </a>
           </div>
 
-          {/* ACTIVE SCENE WORKSPACE CARD */}
-          <div className="bg-[#fffdf8] border border-[#e7e0d4] rounded-2xl p-5 space-y-4 shadow-xs">
+        {/* ACTIVE SCENE WORKSPACE CARD */}
+        <div className="bg-[#fffdf8] border border-[#e7e0d4] rounded-2xl p-5 space-y-4 shadow-xs">
             
             {/* Scene Header & Metadata */}
             <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#e7e0d4]">
@@ -469,6 +444,7 @@ export default function VideoPanel(props: any) {
               </div>
             )}
           </div>
+        </div>
 
           {/* CAPTION SECTION (Siap Posting) */}
           {(activeVideo.captionForPost || activeItem?.caption) && (
@@ -644,261 +620,10 @@ export default function VideoPanel(props: any) {
                     })}
                   </div>
                 </div>
-
-                {/* Video Visual Assets URLs */}
-                <div className="pt-2 border-t border-[#e7e0d4] space-y-2">
-                  <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">Direct Asset URLs (Opsional)</span>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                    <VideoAssetUrlInput
-                      id="char-image-url-input"
-                      label="Character Image URL"
-                      badgeText="Latar UGC 9:16"
-                      value={characterImageUrl}
-                      onChange={setCharacterImageUrl}
-                      placeholder="https://example.com/char.jpg"
-                      aspectRatio="9:16"
-                      helperText="Wajib URL HTTPS publik."
-                      isCharacterUrl={true}
-                    />
-                    <VideoAssetUrlInput
-                      id="product-screen-url-input"
-                      label="Product Screen URL"
-                      badgeText="Overlay Mockup"
-                      value={productScreenImageUrl}
-                      onChange={setProductScreenImageUrl}
-                      placeholder="https://example.com/mock.png"
-                      aspectRatio="16:9"
-                      helperText="Tangkapan layar produk/UI."
-                    />
-                    <VideoAssetUrlInput
-                      id="cover-image-url-input"
-                      label="Cover Image URL"
-                      badgeText="Poster / Scene 1"
-                      value={coverImageUrl}
-                      onChange={setCoverImageUrl}
-                      placeholder="https://example.com/cov.jpg"
-                      aspectRatio="9:16"
-                      helperText="Thumbnail visual pembuka."
-                    />
-                  </div>
-                </div>
               </div>
             </details>
 
           </div>
-
-        </div>
-      )}
-
-      {/* 3. WORKSPACE: RENDER VIA API (JSON2VIDEO) */}
-      {currentOutputMode === 'api' && (
-        <div className="space-y-4">
-          
-          <div className="bg-[#fffdf8] border border-[#e7e0d4] p-5 rounded-2xl space-y-4 shadow-xs">
-            
-            {/* Header & Primary Actions */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-[#e7e0d4]">
-              <div>
-                <h3 className="text-xs font-bold uppercase text-[#1f2933] tracking-wider flex items-center gap-1.5">
-                  <Video size={14} className="text-[#b7791f]" />
-                  Render Otomatis Cloud Engine (JSON2Video)
-                </h3>
-                <p className="text-[11px] text-stone-500 leading-relaxed mt-0.5">
-                  Render video otomatis langsung dari script menggunakan API Key Anda.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <Json2VideoApiKeyControl onToast={showToast} variant="compact" />
-
-                <button
-                  type="button"
-                  onClick={() => handleGenerateJson2VideoPayload(activeVideo)}
-                  className="px-3.5 py-2 bg-[#f6f3ee] hover:bg-stone-200 text-stone-800 border border-[#e7e0d4] font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                >
-                  <Clipboard size={13} />
-                  <span>Generate Payload</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isRenderingVideo}
-                  onClick={() => handleRenderVideo(activeVideo)}
-                  className="px-4 py-2 bg-[#b7791f] hover:bg-[#b7791f]/90 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  {isRenderingVideo ? (
-                    <>
-                      <Loader2 size={13} className="animate-spin" />
-                      <span>Rendering...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Zap size={13} />
-                      <span>Render Video</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Error Notification */}
-            {renderError && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl space-y-1 text-xs text-rose-800">
-                <div className="flex items-center gap-2 font-bold">
-                  <AlertCircle size={15} className="shrink-0 text-rose-600" />
-                  <span>Render Error / API Key Alert</span>
-                </div>
-                <p className="text-[11px] leading-relaxed">{renderError}</p>
-              </div>
-            )}
-
-            {/* Active Render Job Status */}
-            {(isRenderingVideo || renderJobId || renderJobData) && (
-              <div className="p-4 bg-[#f6f3ee] border border-[#e7e0d4] rounded-xl space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#e7e0d4]">
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-600"></span>
-                    </span>
-                    <span className="text-xs font-bold text-stone-900">Status Production Job</span>
-                    {renderJobId && (
-                      <span className="text-[10px] font-mono text-stone-600 bg-[#fffdf8] px-2 py-0.5 rounded border border-[#e7e0d4]">
-                        ID: {renderJobId}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {renderJobId && (
-                      <button
-                        type="button"
-                        disabled={isCheckingStatus}
-                        onClick={() => handleCheckRenderStatus(renderJobId)}
-                        className="px-3 py-1 bg-[#fffdf8] hover:bg-stone-100 text-xs font-bold text-stone-700 rounded-lg transition border border-[#e7e0d4] flex items-center gap-1.5 shadow-xs cursor-pointer"
-                      >
-                        {isCheckingStatus ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                        <span>Cek Status</span>
-                      </button>
-                    )}
-
-                    {(renderJobData?.movie?.url ||
-                      renderJobData?.url ||
-                      renderJobData?.movie?.draft_url ||
-                      renderJobData?.draft_url) && (
-                      <a
-                        href={
-                          renderJobData?.movie?.url ||
-                          renderJobData?.url ||
-                          renderJobData?.movie?.draft_url ||
-                          renderJobData?.draft_url
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3.5 py-1 bg-primary hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1.5"
-                      >
-                        <ExternalLink size={12} />
-                        <span>Buka Video Hasil</span>
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                  <div>
-                    <span className="text-stone-500 text-[10px] font-bold uppercase block">Render Status</span>
-                    <span className="text-stone-900 font-mono font-bold capitalize">
-                      {isRenderingVideo
-                        ? 'Rendering...'
-                        : renderJobData?.movie?.status || renderJobData?.status || 'Submitted'}
-                    </span>
-                  </div>
-                  {(renderJobData?.movie?.message || renderJobData?.message) && (
-                    <div>
-                      <span className="text-stone-500 text-[10px] font-bold uppercase block">Pesan API</span>
-                      <span className="text-stone-800 font-mono">
-                        {renderJobData?.movie?.message || renderJobData?.message}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Generated JSON Payload Details */}
-            {json2VideoPayload?.key === `${activeItem.no || 1}_${activeVideo.id}` && (
-              <details className="group border border-[#e7e0d4] bg-[#f6f3ee] rounded-xl overflow-hidden">
-                <summary className="p-3 flex items-center justify-between text-xs font-bold text-stone-700 cursor-pointer select-none">
-                  <div className="flex items-center gap-2">
-                    <FileText size={13} className="text-primary" />
-                    <span>Detail Payload JSON2Video</span>
-                  </div>
-                  <ChevronDown size={14} className="group-open:rotate-180 transition-transform text-stone-400" />
-                </summary>
-                <div className="p-3 pt-0 space-y-2">
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => handleCopyText(`json2video_${activeVideo.id}`, json2VideoPayload.text, 'none')}
-                      className="px-3 py-1 bg-[#fffdf8] hover:bg-stone-100 text-stone-800 border border-[#e7e0d4] rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-                    >
-                      {copiedStates[`json2video_${activeVideo.id}`] ? (
-                        <>
-                          <Check size={12} className="text-primary" />
-                          <span className="text-primary">Tersalin</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={12} />
-                          <span>Salin Payload</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  <pre className="max-h-60 overflow-auto custom-scrollbar whitespace-pre-wrap break-words rounded-lg border border-[#e7e0d4] bg-[#fffdf8] p-3 text-[10px] leading-relaxed text-stone-800 font-mono">
-                    {json2VideoPayload.text}
-                  </pre>
-                </div>
-              </details>
-            )}
-
-          </div>
-
-          {/* Caption in API Mode */}
-          {(activeVideo.captionForPost || activeItem?.caption) && (
-            <div className="bg-[#fffdf8] border border-[#e7e0d4] p-4.5 rounded-2xl space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText size={14} className="text-primary" />
-                  <span className="text-xs font-bold text-stone-900 uppercase tracking-wider">
-                    Caption Postingan Video (Siap Posting)
-                  </span>
-                </div>
-                <button
-                  onClick={() => handleCopyText(`video_caption_${activeVideo.id}`, activeVideo.captionForPost || activeItem?.caption, 'captionCopied')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f6f3ee] hover:bg-[#e7e0d4] text-[#1f2933] text-xs font-bold rounded-xl transition cursor-pointer border border-[#e7e0d4]"
-                >
-                  {copiedStates[`video_caption_${activeVideo.id}`] ? (
-                    <>
-                      <Check size={13} className="text-primary" />
-                      <span className="text-primary">Caption Tersalin!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={13} />
-                      <span>Salin Caption</span>
-                    </>
-                  )}
-                </button>
-              </div>
-              <div className="p-3.5 bg-[#f6f3ee] border border-[#e7e0d4] rounded-xl text-stone-900 font-sans text-xs leading-relaxed select-all whitespace-pre-wrap">
-                {activeVideo.captionForPost || activeItem?.caption}
-              </div>
-            </div>
-          )}
-
-        </div>
-      )}
 
     </div>
   );
