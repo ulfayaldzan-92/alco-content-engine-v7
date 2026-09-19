@@ -2781,6 +2781,61 @@ assert(
   'Test P3C-A-34: validateAndNormalizeVideoStyles reads negative constraints from output and passes to candidate builder'
 );
 
+// P3C-A-35: Studio page.tsx Carousel candidate caller does not contain generic fallbacks
+const carouselCandidateCallerMatch = studioPageContent.match(/const slidePlans[\s\S]*?buildCarouselProductionCandidate\([\s\S]*?\)/);
+assert(
+  carouselCandidateCallerMatch !== null &&
+  !carouselCandidateCallerMatch[0].includes('Format carousel Instagram 4:5 vertical') &&
+  !carouselCandidateCallerMatch[0].includes('Visual editorial cover carousel') &&
+  !carouselCandidateCallerMatch[0].includes('hard selling ads, cluttered poster, blurry text'),
+  'Test P3C-A-35: Carousel candidate caller in page.tsx contains no generic fallbacks'
+);
+
+// P3C-A-36: Carousel candidate builder preserves empty cover_direction and negative_constraints, validator rejects fail-closed
+const emptyFieldsCarouselCand = buildCarouselProductionCandidate({
+  candidate_id: 'carousel_plan_empty_test',
+  objective: 'Test Objective',
+  slide_count: 1,
+  cover_direction: '',
+  slides: [
+    { slide_number: 1, role: 'hook', headline: 'H', body: 'B', visual_direction: 'V', layout_direction: 'L' },
+  ],
+  visual_continuity: 'Cont',
+  branding: '',
+  negative_constraints: '',
+  final_prompts: { master_prompt: 'M', slides: [{ slide_number: 1, prompt: 'P' }] },
+});
+assert(
+  emptyFieldsCarouselCand.production_details.cover_direction === '' &&
+  emptyFieldsCarouselCand.production_details.negative_constraints === '',
+  'Test P3C-A-36a: buildCarouselProductionCandidate preserves empty cover_direction and negative_constraints'
+);
+const emptyFieldsCarouselVal = validateProductionCandidate(emptyFieldsCarouselCand);
+assert(
+  !emptyFieldsCarouselVal.isValid,
+  'Test P3C-A-36b: validateProductionCandidate rejects Carousel candidate with empty cover_direction or negative_constraints'
+);
+
+// P3C-A-37: Carousel candidate with empty slide layout_direction fails validation fail-closed
+const emptySlideLayoutCarouselCand = buildCarouselProductionCandidate({
+  candidate_id: 'carousel_plan_empty_slide_layout',
+  objective: 'Test Objective',
+  slide_count: 1,
+  cover_direction: 'Cover Dir',
+  slides: [
+    { slide_number: 1, role: 'hook', headline: 'H', body: 'B', visual_direction: 'V', layout_direction: '' },
+  ],
+  visual_continuity: 'Cont',
+  branding: '',
+  negative_constraints: 'No ads',
+  final_prompts: { master_prompt: 'M', slides: [{ slide_number: 1, prompt: 'P' }] },
+});
+const emptySlideLayoutCarouselVal = validateProductionCandidate(emptySlideLayoutCarouselCand);
+assert(
+  !emptySlideLayoutCarouselVal.isValid && emptySlideLayoutCarouselVal.error?.includes('layout_direction'),
+  'Test P3C-A-37: validateProductionCandidate rejects Carousel candidate with empty slide layout_direction fail-closed'
+);
+
 // -------------------------------------------------------------
 // RESULTS SUMMARY
 // -------------------------------------------------------------

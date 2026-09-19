@@ -2412,7 +2412,7 @@ Image/Illustration Direction: ${visualFormat === 'infographic' ? 'Clean modern e
     headline: slide.headline,
     body: slide.body,
     visual_direction: slide.visual_intent,
-    layout_direction: slide.visual_production?.layout || slide.text_zone || 'Format carousel Instagram 4:5 vertical',
+    layout_direction: slide.visual_production?.layout || slide.text_zone || '',
   }));
 
   const slidePrompts = normalizedSlides.map((slide) => ({
@@ -2423,7 +2423,7 @@ Image/Illustration Direction: ${visualFormat === 'infographic' ? 'Clean modern e
   const coverDirection =
     normalizedSlides[0]?.visual_intent ||
     normalizedSlides[0]?.visual_production?.composition ||
-    'Visual editorial cover carousel';
+    '';
 
   const carouselCandidate = attachProductionCandidate
     ? buildCarouselProductionCandidate({
@@ -2436,7 +2436,7 @@ Image/Illustration Direction: ${visualFormat === 'infographic' ? 'Clean modern e
         branding: '',
         negative_constraints:
           normalizedSlides[0]?.visual_production?.negative_prompt ||
-          'hard selling ads, cluttered poster, blurry text',
+          '',
         final_prompts: {
           master_prompt: visualSystemNotes,
           slides: slidePrompts,
