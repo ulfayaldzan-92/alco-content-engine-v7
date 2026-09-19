@@ -64,6 +64,10 @@ import {
   getProjectActiveCharacterId,
   saveProjectActiveCharacterId
 } from '@/lib/storage';
+import {
+  ProductionOutputSource,
+  isAuthoritativeProductionOutputSource,
+} from '@/lib/production-output-source';
 import { injectCharacterToPrompt } from '@/lib/character-prompt';
 import CharacterDNASection from '@/components/CharacterDNA';
 import ProductionProgressWidget from '@/components/calendar/ProductionProgressWidget';
@@ -3807,6 +3811,12 @@ export default function ProductionStudioPage() {
   const [imageOutput, setImageOutput] = useState<string>('');
   const [carouselOutput, setCarouselOutput] = useState<string>('');
   const [videoOutput, setVideoOutput] = useState<string>('');
+  const [imageOutputSource, setImageOutputSource] =
+    useState<ProductionOutputSource>('none');
+  const [carouselOutputSource, setCarouselOutputSource] =
+    useState<ProductionOutputSource>('none');
+  const [videoOutputSource, setVideoOutputSource] =
+    useState<ProductionOutputSource>('none');
   const [ugcOutput, setUgcOutput] = useState<string>('');
   const [reviewOutput, setReviewOutput] = useState<string>('');
   const [revisionNotes, setRevisionNotes] = useState<string>('');
@@ -4226,8 +4236,11 @@ export default function ProductionStudioPage() {
 
     // Reset all outputs to clean state first to prevent any potential cache carry-over
     setImageOutput('');
+    setImageOutputSource('none');
     setCarouselOutput('');
+    setCarouselOutputSource('none');
     setVideoOutput('');
+    setVideoOutputSource('none');
     setUgcOutput('');
     setReviewOutput('');
     setRevisionNotes('');
@@ -4352,29 +4365,35 @@ export default function ProductionStudioPage() {
 
         if (storedImage && !isErrorContent(storedImage)) {
           setImageOutput(storedImage);
+          setImageOutputSource('stored_output');
         } else {
           if (storedImage && isErrorContent(storedImage)) {
             removeProjectData(resolvedCanonicalId, `studio_image_${itemKey}`);
           }
           setImageOutput(getInitialDraft('image', resolvedItem, parsedContext));
+          setImageOutputSource('initial_draft');
         }
 
         if (storedCarousel && !isErrorContent(storedCarousel)) {
           setCarouselOutput(storedCarousel);
+          setCarouselOutputSource('stored_output');
         } else {
           if (storedCarousel && isErrorContent(storedCarousel)) {
             removeProjectData(resolvedCanonicalId, `studio_carousel_${itemKey}`);
           }
           setCarouselOutput(getInitialDraft('carousel', resolvedItem, parsedContext));
+          setCarouselOutputSource('initial_draft');
         }
 
         if (storedVideo && !isErrorContent(storedVideo)) {
           setVideoOutput(storedVideo);
+          setVideoOutputSource('stored_output');
         } else {
           if (storedVideo && isErrorContent(storedVideo)) {
             removeProjectData(resolvedCanonicalId, `studio_video_${itemKey}`);
           }
           setVideoOutput(getInitialDraft('video', resolvedItem, parsedContext));
+          setVideoOutputSource('initial_draft');
         }
 
         if (storedUgc && !isErrorContent(storedUgc)) {
@@ -4822,6 +4841,7 @@ Pastikan evaluasi memeriksa kepatuhan aturan funnel ${funnelStage}:
 
           if (normalizedStage1) {
             saveCarouselOutput(normalizedStage1);
+            setCarouselOutputSource('generated_output');
           }
 
           // STAGE 2: VISUAL ENRICHMENT
@@ -4864,6 +4884,7 @@ Pastikan evaluasi memeriksa kepatuhan aturan funnel ${funnelStage}:
             if (normalizedStage1) {
               setGenerationError(null);
               saveCarouselOutput(normalizedStage1);
+              setCarouselOutputSource('generated_output');
             }
             return;
           }
@@ -4888,10 +4909,12 @@ Pastikan evaluasi memeriksa kepatuhan aturan funnel ${funnelStage}:
           if (mergedPlanStr) {
             setGenerationError(null);
             saveCarouselOutput(mergedPlanStr);
+            setCarouselOutputSource('generated_output');
             showToast(`Aset CAROUSEL (2-Stage Blueprint) berhasil dioptimalkan oleh Gemini AI!`);
           } else if (normalizedStage1) {
             setGenerationError(null);
             saveCarouselOutput(normalizedStage1);
+            setCarouselOutputSource('generated_output');
             showToast(`Aset CAROUSEL Stage 1 Content Plan berhasil disimpan!`);
           } else {
             setGenerationError("Format respon AI tidak valid atau tidak memenuhi skema Carousel canonical. Silakan coba lagi.");
@@ -4989,6 +5012,7 @@ ${formatDirection}${revisionDirective}`;
             if (normalized) {
               setGenerationError(null);
               saveImageOutput(normalized);
+              setImageOutputSource('generated_output');
               showToast(`Aset IMAGE (3 Angle) berhasil dioptimalkan oleh Gemini AI!`);
             } else {
               setGenerationError("Format respon AI tidak valid atau tidak memenuhi skema Image Angle canonical. Silakan coba lagi.");
@@ -5000,10 +5024,12 @@ ${formatDirection}${revisionDirective}`;
             if (normalized) {
               setGenerationError(null);
               saveVideoOutput(normalized);
+              setVideoOutputSource('generated_output');
               showToast(`Aset VIDEO (3 Style) berhasil dioptimalkan oleh Gemini AI!`);
             } else {
               setGenerationError(null);
               saveVideoOutput(generatedText);
+              setVideoOutputSource('generated_output');
               showToast(`Aset VIDEO berhasil dioptimalkan oleh Gemini AI!`);
             }
           } else {
@@ -5101,17 +5127,26 @@ ${formatDirection}${revisionDirective}`;
   }, [activeTab, imageOutput, carouselOutput, videoOutput, reviewOutput, activeItem, activeContext]);
 
   const handleUpdateOutputText = (val: string) => {
-    if (activeTab === 'image') saveImageOutput(val);
-    else if (activeTab === 'carousel') saveCarouselOutput(val);
-    else if (activeTab === 'video') saveVideoOutput(val);
-    else if (activeTab === 'review') saveReviewOutput(val);
+    if (activeTab === 'image') {
+      saveImageOutput(val);
+      setImageOutputSource('user_edited_output');
+    } else if (activeTab === 'carousel') {
+      saveCarouselOutput(val);
+      setCarouselOutputSource('user_edited_output');
+    } else if (activeTab === 'video') {
+      saveVideoOutput(val);
+      setVideoOutputSource('user_edited_output');
+    } else if (activeTab === 'review') {
+      saveReviewOutput(val);
+    }
   };
 
   // Memoized parsed image angles package
   const imageAnglesPackage = useMemo<ImageAnglesPackage | null>(() => {
     if (!activeItem) return null;
+    const canAttachImageCandidate = isAuthoritativeProductionOutputSource(imageOutputSource);
     const textToParse = imageOutput || getInitialDraft('image', activeItem, activeContext);
-    const normalizedJson = validateAndNormalizeImageAngles(textToParse, activeItem, activeContext, Boolean(imageOutput));
+    const normalizedJson = validateAndNormalizeImageAngles(textToParse, activeItem, activeContext, canAttachImageCandidate);
     if (!normalizedJson) {
       const fallbackParsed = tryParseJSON(textToParse);
       if (!fallbackParsed) return null;
@@ -5143,7 +5178,7 @@ ${formatDirection}${revisionDirective}`;
 
       const fallbackStage = normalizeFunnelStage(activeItem?.jenis);
       const formattedAngles: ImageAngle[] = list.map((item: any, i: number) => {
-        return sanitizeAndAlignImageAngle(item, fallbackStage, activeItem?.headline || '', i, activeContext, Boolean(imageOutput));
+        return sanitizeAndAlignImageAngle(item, fallbackStage, activeItem?.headline || '', i, activeContext, canAttachImageCandidate);
       });
 
       return {
@@ -5160,7 +5195,7 @@ ${formatDirection}${revisionDirective}`;
     }
 
     return tryParseJSON(normalizedJson) as ImageAnglesPackage;
-  }, [imageOutput, activeItem, activeContext]);
+  }, [imageOutput, imageOutputSource, activeItem, activeContext]);
 
   // Sync selected angle when recommended angle is parsed
   useEffect(() => {
@@ -5183,6 +5218,15 @@ ${formatDirection}${revisionDirective}`;
 
   // Memoized parsed carousel plan
   const carouselPlan = useMemo<CarouselPlan | null>(() => {
+    const attachCandidate = isAuthoritativeProductionOutputSource(carouselOutputSource);
+    const textToParse = carouselOutput || getInitialDraft('carousel', activeItem, activeContext);
+    const normalized = validateAndNormalizeCarouselPlan(textToParse, activeItem, activeContext, attachCandidate);
+    if (normalized) {
+      const parsed = tryParseJSON(normalized);
+      if (parsed && typeof parsed === 'object') {
+        return parsed as CarouselPlan;
+      }
+    }
     const parsed = tryParseJSON(carouselOutput);
     if (parsed && typeof parsed === 'object') {
       if ('slides' in parsed && Array.isArray((parsed as any).slides)) {
@@ -5190,7 +5234,19 @@ ${formatDirection}${revisionDirective}`;
       }
     }
     return null;
-  }, [carouselOutput]);
+  }, [carouselOutput, carouselOutputSource, activeItem, activeContext]);
+
+  const normalizedCarouselOutput = useMemo(() => {
+    const attachCandidate = isAuthoritativeProductionOutputSource(carouselOutputSource);
+    const textToParse = carouselOutput || getInitialDraft('carousel', activeItem, activeContext);
+    return validateAndNormalizeCarouselPlan(textToParse, activeItem, activeContext, attachCandidate) || carouselOutput;
+  }, [carouselOutput, carouselOutputSource, activeItem, activeContext]);
+
+  const normalizedVideoOutput = useMemo(() => {
+    const attachCandidate = isAuthoritativeProductionOutputSource(videoOutputSource);
+    const textToParse = videoOutput || getInitialDraft('video', activeItem, activeContext);
+    return validateAndNormalizeVideoStyles(textToParse, activeItem, activeContext, attachCandidate) || videoOutput;
+  }, [videoOutput, videoOutputSource, activeItem, activeContext]);
 
   // Render content of active tab dynamically with premium workshop components
   const renderTabContent = () => {
@@ -5202,7 +5258,7 @@ ${formatDirection}${revisionDirective}`;
       nextStepVisibleKeys, setNextStepVisibleKeys, handleDismissNextStep,
       imageOutput, getInitialDraft, funnelRules,  selectedCarouselId,
       setSelectedCarouselId, activeSlideNumber, setActiveSlideNumber, 
-      carouselOutput, videoOutput, tryParseJSON, normalizeFunnelStage, getFunnelRules,
+      carouselOutput: normalizedCarouselOutput, videoOutput: normalizedVideoOutput, tryParseJSON, normalizeFunnelStage, getFunnelRules,
       selectedVideoId, handleSelectVideoStyle, videoMode, setVideoMode, characterImageUrl,
       setCharacterImageUrl, productScreenImageUrl, setProductScreenImageUrl, coverImageUrl,
       setCoverImageUrl, videoOutputMode, setVideoOutputMode, showToast, handleGenerateJson2VideoPayload,
