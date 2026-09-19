@@ -35,8 +35,6 @@ export default function VideoPanel(props: any) {
     getFunnelRules,
     selectedVideoId,
     handleSelectVideoStyle,
-    videoMode,
-    setVideoMode,
     flowCustomCreator,
     flowCustomSetting,
     flowCustomDialogues,
@@ -73,9 +71,6 @@ export default function VideoPanel(props: any) {
 
   const activeVideo = videoStyles.find((v) => v.id === selectedVideoId) || videoStyles[0];
   const videoFunnelStage = normalizeFunnelStage(activeItem.jenis);
-
-  // Default mode to google_flow
-  const currentOutputMode = 'google_flow';
 
   const googleFlowScenes = getGoogleFlowVideoPack(
     videoFunnelStage,
@@ -138,7 +133,7 @@ export default function VideoPanel(props: any) {
           })}
         </div>
 
-        {/* Character Selector & Workflow Info (Render via API hidden for production) */}
+        {/* Character Selector & Workflow Info */}
         <div className="flex items-center gap-2 flex-wrap">
           <CharacterSelector
             savedCharacters={savedCharacters || []}
@@ -584,40 +579,6 @@ export default function VideoPanel(props: any) {
                   <div className="p-3 bg-[#f6f3ee] border border-[#e7e0d4] rounded-xl space-y-1">
                     <span className="text-[10px] font-bold text-stone-500 uppercase block">Visual Direction Utama</span>
                     <p className="text-stone-800 leading-snug line-clamp-3">{activeVideo.visualDirection || activeItem.visual || '-'}</p>
-                  </div>
-                </div>
-
-                {/* Mode Selection */}
-                <div className="pt-2 border-t border-[#e7e0d4] space-y-2">
-                  <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">Mode Produksi Video</span>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    {[
-                      { id: 'text_motion', title: 'Text Motion', desc: 'Video berbasis teks & motion graphic' },
-                      { id: 'ugc_video', title: 'UGC Video', desc: 'Video dengan talent / karakter pembawa pesan' },
-                      { id: 'asset_product', title: 'Asset Product', desc: 'Video memakai aset screenshot / produk' },
-                    ].map((mode) => {
-                      const isSelected = videoMode === mode.id;
-                      return (
-                        <button
-                          key={mode.id}
-                          type="button"
-                          onClick={() => setVideoMode(mode.id as any)}
-                          className={`p-2.5 rounded-xl border text-left transition-all ${
-                            isSelected
-                              ? 'bg-[#fffdf8] border-primary shadow-xs'
-                              : 'bg-[#f6f3ee] border-[#e7e0d4] text-stone-600 hover:bg-[#fffdf8]'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-0.5">
-                            <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-stone-800'}`}>
-                              {mode.title}
-                            </span>
-                            {isSelected && <Check size={12} className="text-primary" />}
-                          </div>
-                          <p className="text-[10px] text-stone-500 leading-tight">{mode.desc}</p>
-                        </button>
-                      );
-                    })}
                   </div>
                 </div>
               </div>

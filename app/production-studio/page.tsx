@@ -3244,14 +3244,12 @@ export default function ProductionStudioPage() {
   const [activeSlideNumber, setActiveSlideNumber] = useState<number>(1);
 
   // Video Mode state
-  const [videoMode, setVideoMode] = useState<'ugc_video' | 'text_motion' | 'asset_product'>('ugc_video');
   const [flowCustomCreator, setFlowCustomCreator] = useState<string>('');
   const [flowCustomSetting, setFlowCustomSetting] = useState<string>('');
   const [flowCustomDialogues, setFlowCustomDialogues] = useState<{ [key: string]: { scene1?: string; scene2?: string; scene3?: string } }>({});
 
   const handleSelectVideoStyle = (styleId: 'A' | 'B' | 'C') => {
     setSelectedVideoId(styleId);
-    setVideoMode(resolveVideoProductionMode(styleId));
   };
 
   // Direct image generation state
@@ -4482,7 +4480,7 @@ ${formatDirection}${revisionDirective}`;
       imageOutput, getInitialDraft, funnelRules, selectedCarouselId,
       setSelectedCarouselId, activeSlideNumber, setActiveSlideNumber, 
       carouselOutput: normalizedCarouselOutput, videoOutput: normalizedVideoOutput, tryParseJSON, normalizeFunnelStage, getFunnelRules,
-      selectedVideoId, handleSelectVideoStyle, videoMode, setVideoMode, showToast,
+      selectedVideoId, handleSelectVideoStyle, showToast,
       flowCustomCreator, setFlowCustomCreator,
       flowCustomSetting, setFlowCustomSetting, flowCustomDialogues, setFlowCustomDialogues,
       ugcOutput, sourceItem,
@@ -5013,7 +5011,7 @@ ${formatDirection}${revisionDirective}`;
                 setIsEditingMode={setIsEditingMode}
                 reviewOutput={reviewOutput}
                 getInitialDraft={getInitialDraft}
-                saveReviewOutput={saveReviewOutput} setVideoMode={setVideoMode} handleCopyText={handleCopyText} copiedStates={copiedStates}
+                saveReviewOutput={saveReviewOutput} handleCopyText={handleCopyText} copiedStates={copiedStates}
                 setActiveTab={setActiveTab}
               />
             ) : (
