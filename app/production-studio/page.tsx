@@ -2889,6 +2889,11 @@ function validateAndNormalizeVideoStyles(
       };
 
       const videoPrompt = String(v.videoPrompt || v.video_prompt || '').trim();
+      const videoNegativeConstraints = String(
+        v.negative_constraints ??
+        v.negativeConstraints ??
+        ''
+      ).trim();
       const visualPlan = String(v.visualPlan || v.visual_plan || '').trim();
 
       let captionForPost = String(v.captionForPost || v.caption_for_post || '').trim();
@@ -2899,19 +2904,22 @@ function validateAndNormalizeVideoStyles(
       const captionInstruction = String(v.captionInstruction || v.caption_instruction || defaultCaptionInstruction).trim() || defaultCaptionInstruction;
 
       const scenes = buildCanonicalVideoScenePlan(funnelStage, script);
-      const productionCandidate = attachProductionCandidate
-        ? buildVideoProductionCandidate({
-            candidate_id: `video_style_${id}`,
-            production_mode: resolveVideoProductionMode(id),
-            objective: activeItem?.tujuan || funnelRules.goal || 'Video produksi terstruktur',
-            format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
-            hook: script.hook,
-            scenes,
-            motion_direction: pacingStyle,
-            audio_direction: audioDirection,
-            final_prompt: videoPrompt,
-          })
-        : undefined;
+      const productionMode = resolveVideoProductionMode(id);
+      const productionCandidate =
+        attachProductionCandidate && productionMode
+          ? buildVideoProductionCandidate({
+              candidate_id: `video_style_${id}`,
+              production_mode: productionMode,
+              objective: activeItem?.tujuan || funnelRules.goal || '',
+              format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
+              hook: script.hook,
+              scenes,
+              motion_direction: pacingStyle,
+              audio_direction: audioDirection,
+              negative_constraints: videoNegativeConstraints,
+              final_prompt: videoPrompt,
+            })
+          : undefined;
 
       return {
         id,

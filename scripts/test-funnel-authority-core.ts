@@ -2700,11 +2700,17 @@ assert(
   'Test P3C-A-26: Candidate containing content_item_id fails validation fail-closed'
 );
 
-// P3C-A-27: Studio page.tsx source audit confirms getInitialDraft strictly uses initial_draft provenance
+// P3C-A-27: Studio page.tsx source audit confirms isAuthoritativeProductionOutputSource provenance check
 const studioPageContent = fs.readFileSync(path.join(projectRoot, 'app', 'production-studio', 'page.tsx'), 'utf8');
 assert(
-  studioPageContent.includes("isAuthoritativeProductionOutputSource(source)") &&
-  studioPageContent.includes("source: 'initial_draft'"),
+  studioPageContent.includes("isAuthoritativeProductionOutputSource(imageOutputSource)") &&
+  studioPageContent.includes("isAuthoritativeProductionOutputSource(carouselOutputSource)") &&
+  studioPageContent.includes("isAuthoritativeProductionOutputSource(videoOutputSource)") &&
+  (
+    studioPageContent.includes("setImageOutputSource('initial_draft')") ||
+    studioPageContent.includes("setCarouselOutputSource('initial_draft')") ||
+    studioPageContent.includes("setVideoOutputSource('initial_draft')")
+  ),
   'Test P3C-A-27: Production Studio page.tsx integrates isAuthoritativeProductionOutputSource provenance check'
 );
 
@@ -2759,6 +2765,20 @@ const p3ca32Val = validateProductionCandidate(missingNegativeVideo);
 assert(
   !p3ca32Val.isValid && p3ca32Val.error?.includes('negative_constraints'),
   'Test P3C-A-32: Video candidate with empty negative_constraints fails validation fail-closed'
+);
+
+// P3C-A-33: Studio page.tsx resolves video production mode and guards candidate creation on valid productionMode
+assert(
+  studioPageContent.includes('const productionMode = resolveVideoProductionMode(id)') &&
+  studioPageContent.includes('attachProductionCandidate && productionMode'),
+  'Test P3C-A-33: Production Studio guards video candidate creation fail-closed on valid productionMode'
+);
+
+// P3C-A-34: Studio page.tsx reads video negative constraints from output and passes to buildVideoProductionCandidate
+assert(
+  (studioPageContent.includes('v.negative_constraints') || studioPageContent.includes('v.negativeConstraints')) &&
+  studioPageContent.includes('negative_constraints: videoNegativeConstraints'),
+  'Test P3C-A-34: validateAndNormalizeVideoStyles reads negative constraints from output and passes to candidate builder'
 );
 
 // -------------------------------------------------------------
