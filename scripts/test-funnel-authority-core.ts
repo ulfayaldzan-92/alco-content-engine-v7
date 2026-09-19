@@ -3478,6 +3478,208 @@ assert(
   'Test P3D-A-25: production-package-workflow.ts source does not generate non-deterministic metadata'
 );
 
+// =============================================================
+// PHASE 3D-B: IMAGE PRODUCTION GATE TESTS
+// =============================================================
+
+const pageStudioPath = path.join(projectRoot, 'app', 'production-studio', 'page.tsx');
+const pageStudioSource = fs.readFileSync(pageStudioPath, 'utf8');
+
+// P3D-B-01: Image generation path uses prepareProductionPackage()
+assert(
+  pageStudioSource.includes('prepareProductionPackage({') || pageStudioSource.includes('prepareProductionPackage('),
+  'Test P3D-B-01: Production Studio page.tsx calls prepareProductionPackage in image generation path'
+);
+
+// P3D-B-02: Image generation path uses saveProductionPackage()
+assert(
+  pageStudioSource.includes('saveProductionPackage('),
+  'Test P3D-B-02: Production Studio page.tsx calls saveProductionPackage in image generation path'
+);
+
+// Extract handleGenerateImage function body for strict ordering and gate checks
+const handleGenImgStart = pageStudioSource.indexOf('const handleGenerateImage =');
+const handleGenImgEnd = pageStudioSource.indexOf('const handleDownloadImage =');
+assert(
+  handleGenImgStart !== -1 && handleGenImgEnd !== -1 && handleGenImgEnd > handleGenImgStart,
+  'Test P3D-B-00: handleGenerateImage function isolated successfully in page.tsx'
+);
+
+const handleGenImgSource = pageStudioSource.slice(handleGenImgStart, handleGenImgEnd);
+
+// P3D-B-03: Package prepare is called before Gemini fetch
+const prepIndex = handleGenImgSource.indexOf('prepareProductionPackage');
+const fetchIndex = handleGenImgSource.indexOf("fetch('/api/gemini/generate-image'");
+assert(
+  prepIndex !== -1 && fetchIndex !== -1 && prepIndex < fetchIndex,
+  'Test P3D-B-03: prepareProductionPackage is called before Gemini fetch in handleGenerateImage'
+);
+
+// P3D-B-04: Package save is called before Gemini fetch
+const saveIndex = handleGenImgSource.indexOf('saveProductionPackage');
+assert(
+  saveIndex !== -1 && fetchIndex !== -1 && saveIndex < fetchIndex,
+  'Test P3D-B-04: saveProductionPackage is called before Gemini fetch in handleGenerateImage'
+);
+
+// P3D-B-05: Non-authoritative image source: 'none' -> false
+assert(
+  isAuthoritativeProductionOutputSource('none' as any) === false,
+  'Test P3D-B-05: Non-authoritative source "none" is rejected'
+);
+
+// P3D-B-06: Non-authoritative image source: 'initial_draft' -> false
+assert(
+  isAuthoritativeProductionOutputSource('initial_draft' as any) === false,
+  'Test P3D-B-06: Non-authoritative source "initial_draft" is rejected'
+);
+
+// P3D-B-07: Authoritative image source: 'stored_output' -> true
+assert(
+  isAuthoritativeProductionOutputSource('stored_output') === true,
+  'Test P3D-B-07: Authoritative source "stored_output" is accepted'
+);
+
+// P3D-B-08: Authoritative image source: 'generated_output' -> true
+assert(
+  isAuthoritativeProductionOutputSource('generated_output') === true,
+  'Test P3D-B-08: Authoritative source "generated_output" is accepted'
+);
+
+// P3D-B-09: Authoritative image source: 'user_edited_output' -> true
+assert(
+  isAuthoritativeProductionOutputSource('user_edited_output') === true,
+  'Test P3D-B-09: Authoritative source "user_edited_output" is accepted'
+);
+
+// P3D-B-10: Missing sourceItem in handleGenerateImage causes closed-fail
+assert(
+  handleGenImgSource.includes('if (!sourceItem) {') &&
+  handleGenImgSource.includes('Authoritative ContentItem tidak ditemukan'),
+  'Test P3D-B-10: Missing sourceItem triggers closed-fail in handleGenerateImage'
+);
+
+// P3D-B-11: Missing SharedContentContext in handleGenerateImage causes closed-fail
+assert(
+  handleGenImgSource.includes('if (!sharedContextSnapshot) {') &&
+  handleGenImgSource.includes('Authoritative SharedContentContext tidak ditemukan'),
+  'Test P3D-B-11: Missing sharedContextSnapshot triggers closed-fail in handleGenerateImage'
+);
+
+// P3D-B-12: Missing FunnelStrategy in handleGenerateImage causes closed-fail
+assert(
+  handleGenImgSource.includes('if (!funnelStrategySnapshot) {') &&
+  handleGenImgSource.includes('Authoritative FunnelStrategy tidak ditemukan'),
+  'Test P3D-B-12: Missing funnelStrategySnapshot triggers closed-fail in handleGenerateImage'
+);
+
+// P3D-B-13: Clicked Angle B selects canonical candidate B specifically (candidates A != B != C)
+const candA_B13 = buildImageProductionCandidate({ candidate_id: 'A', finalPrompt: 'Prompt Angle A', visualObjective: 'Obj A' });
+const candB_B13 = buildImageProductionCandidate({ candidate_id: 'B', finalPrompt: 'Prompt Angle B', visualObjective: 'Obj B' });
+const candC_B13 = buildImageProductionCandidate({ candidate_id: 'C', finalPrompt: 'Prompt Angle C', visualObjective: 'Obj C' });
+
+assert(
+  candA_B13.final_prompt !== candB_B13.final_prompt &&
+  candB_B13.final_prompt !== candC_B13.final_prompt,
+  'Test P3D-B-13a: Candidates A, B, C have distinct prompts'
+);
+
+const resB_B13 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: p3daStrategy,
+  contentItem: p3daContentItem,
+  characterDNA: p3daCharacterDNA,
+  candidates: [candA_B13, candB_B13, candC_B13],
+  selectedCandidateId: 'B',
+  metadata: p3daMetadata,
+});
+
+assert(
+  resB_B13.ok === true &&
+  resB_B13.package.asset_type === 'image' &&
+  resB_B13.package.asset.final_prompt === 'Prompt Angle B',
+  'Test P3D-B-13b: Clicked Angle B explicitly selects candidate B package'
+);
+
+// P3D-B-14: Unknown clicked angle/candidate ID -> closed fail
+const resUnknown_B14 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: p3daStrategy,
+  contentItem: p3daContentItem,
+  candidates: [candA_B13, candB_B13],
+  selectedCandidateId: 'UNKNOWN_ANGLE_Z',
+  metadata: p3daMetadata,
+});
+assert(
+  resUnknown_B14.ok === false,
+  'Test P3D-B-14: Unknown angle candidate ID fails package preparation'
+);
+
+// P3D-B-15: Duplicate candidate ID -> closed fail
+const candDup_B15 = buildImageProductionCandidate({ candidate_id: 'A', finalPrompt: 'Prompt Angle A Duplicate', visualObjective: 'Obj A Dup' });
+const resDup_B15 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: p3daStrategy,
+  contentItem: p3daContentItem,
+  candidates: [candA_B13, candDup_B15],
+  selectedCandidateId: 'A',
+  metadata: p3daMetadata,
+});
+assert(
+  resDup_B15.ok === false && resDup_B15.error?.includes('Duplicate candidate ID'),
+  'Test P3D-B-15: Duplicate candidate IDs fail package preparation'
+);
+
+// P3D-B-16: ProductionPackage asset_type not image is blocked in handleGenerateImage
+assert(
+  handleGenImgSource.includes("if (productionPackage.asset_type !== 'image') {") &&
+  handleGenImgSource.includes('Package type mismatch'),
+  'Test P3D-B-16: Non-image package asset_type is blocked in handleGenerateImage'
+);
+
+// P3D-B-17: saveProductionPackage failure prevents Gemini fetch
+assert(
+  handleGenImgSource.includes('const saveResult = saveProductionPackage(') &&
+  handleGenImgSource.includes('if (!saveResult.ok) {') &&
+  handleGenImgSource.indexOf('if (!saveResult.ok) {') < fetchIndex,
+  'Test P3D-B-17: saveProductionPackage failure stops flow before Gemini fetch'
+);
+
+// P3D-B-18: Image generation flow does not use recommendedAngleId, angles[0], candidates[0] as fallback
+assert(
+  !handleGenImgSource.includes('recommendedAngleId') &&
+  !handleGenImgSource.includes('angles[0]') &&
+  !handleGenImgSource.includes('candidates[0]'),
+  'Test P3D-B-18: handleGenerateImage does not use fallback candidates or recommendedAngleId for production selection'
+);
+
+// P3D-B-19: Production package authority uses sourceItem, not activeItem fallback
+assert(
+  !handleGenImgSource.includes('activeItem') &&
+  handleGenImgSource.includes('contentItem: sourceItem'),
+  'Test P3D-B-19: Production package authority strictly uses sourceItem without activeItem fallback'
+);
+
+// P3D-B-20: ImagePanel maintains effective prompt flow with CharacterDNA integration
+const imagePanelPath = path.join(projectRoot, 'components', 'production-studio', 'ImagePanel.tsx');
+const imagePanelSource = fs.readFileSync(imagePanelPath, 'utf8');
+assert(
+  imagePanelSource.includes('injectCharacterToPrompt(') &&
+  imagePanelSource.includes('handleGenerateImage(effectivePrompt, activeAngle.id)'),
+  'Test P3D-B-20: ImagePanel retains effectivePrompt and CharacterDNA integration'
+);
+
+// P3D-B-21: Async stale-response guard exists in handleGenerateImage
+assert(
+  handleGenImgSource.includes('getActiveProjectId() !== requestProjectId') &&
+  handleGenImgSource.includes('canonicalProjectId !== requestProjectId') &&
+  handleGenImgSource.includes('!sourceItem'),
+  'Test P3D-B-21: handleGenerateImage retains stale response async guard'
+);
+
 // -------------------------------------------------------------
 // RESULTS SUMMARY
 // -------------------------------------------------------------

@@ -68,6 +68,9 @@ import {
   ProductionOutputSource,
   isAuthoritativeProductionOutputSource,
 } from '@/lib/production-output-source';
+import { prepareProductionPackage } from '@/lib/production-package-workflow';
+import { saveProductionPackage } from '@/lib/production-package-storage';
+import { ProductionPackageMetadata } from '@/lib/production-engine';
 import { injectCharacterToPrompt } from '@/lib/character-prompt';
 import CharacterDNASection from '@/components/CharacterDNA';
 import ProductionProgressWidget from '@/components/calendar/ProductionProgressWidget';
@@ -4075,9 +4078,108 @@ export default function ProductionStudioPage() {
       return;
     }
     if (!promptText || !promptText.trim() || !!imageGeneratingKey || !canonicalProjectId) return;
+
+    // Strict authority check (NO activeItem fallback)
+    if (!sourceItem) {
+      setImageGenerateError('Authoritative ContentItem tidak ditemukan (sourceItem null). Production package diblokir.');
+      showToast('Gagal: ContentItem tidak valid untuk produksi.');
+      return;
+    }
+    if (!sharedContextSnapshot) {
+      setImageGenerateError('Authoritative SharedContentContext tidak ditemukan (sharedContextSnapshot null). Production package diblokir.');
+      showToast('Gagal: Context project tidak valid untuk produksi.');
+      return;
+    }
+    if (!funnelStrategySnapshot) {
+      setImageGenerateError('Authoritative FunnelStrategy tidak ditemukan (funnelStrategySnapshot null). Production package diblokir.');
+      showToast('Gagal: Funnel strategy project tidak valid untuk produksi.');
+      return;
+    }
+
+    // Authoritative output source check
+    if (!isAuthoritativeProductionOutputSource(imageOutputSource)) {
+      setImageGenerateError(`Image output source (${imageOutputSource}) bukan authoritative production output. Production package diblokir.`);
+      showToast('Gagal: Output visual belum bernilai produksi authoritative.');
+      return;
+    }
+
+    // Extract canonical production candidates from imageAnglesPackage
+    if (!imageAnglesPackage || !Array.isArray(imageAnglesPackage.angles) || imageAnglesPackage.angles.length === 0) {
+      setImageGenerateError('Image output package tidak ditemukan atau kosong. Production package diblokir.');
+      showToast('Gagal: Candidate visual tidak tersedia.');
+      return;
+    }
+
+    const candidates: ProductionCandidate[] = imageAnglesPackage.angles
+      .map(a => a.productionCandidate)
+      .filter((c): c is ProductionCandidate => Boolean(c));
+
+    if (candidates.length === 0) {
+      setImageGenerateError('Tidak ada production candidate valid di dalam Image output. Production package diblokir.');
+      showToast('Gagal: Candidate visual tidak terstruktur.');
+      return;
+    }
+
+    // Check explicit clicked angle candidate
+    const selectedCandidate = candidates.find(c => c.candidate_id === angleId);
+    if (!selectedCandidate) {
+      setImageGenerateError(`Production candidate untuk angle [${angleId}] tidak ditemukan. Production package diblokir.`);
+      showToast(`Gagal: Candidate angle [${angleId}] tidak ditemukan.`);
+      return;
+    }
+
+    // Package metadata generation in caller
+    if (typeof crypto === 'undefined' || typeof crypto.randomUUID !== 'function') {
+      setImageGenerateError('API crypto.randomUUID tidak tersedia untuk pembuatan metadata production package.');
+      showToast('Gagal: Crypto API tidak tersedia.');
+      return;
+    }
+
+    const packageMetadata: ProductionPackageMetadata = {
+      package_id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+    };
+
+    // Prepare Production Package
+    const prepResult = prepareProductionPackage({
+      projectId: canonicalProjectId,
+      sharedContext: sharedContextSnapshot,
+      funnelStrategy: funnelStrategySnapshot,
+      contentItem: sourceItem,
+      characterDNA: characterDNA || undefined,
+      candidates,
+      selectedCandidateId: angleId,
+      metadata: packageMetadata,
+    });
+
+    if (!prepResult.ok || !prepResult.package) {
+      const prepErr = prepResult.error || 'Gagal menyiapkan production package.';
+      setImageGenerateError(prepErr);
+      showToast(`Gagal prepare package: ${prepErr}`);
+      return;
+    }
+
+    const productionPackage = prepResult.package;
+
+    // Verify asset_type is image
+    if (productionPackage.asset_type !== 'image') {
+      setImageGenerateError(`Production package asset_type [${productionPackage.asset_type}] bukan image.`);
+      showToast('Gagal: Package type mismatch.');
+      return;
+    }
+
+    // Save Production Package before external generation
+    const saveResult = saveProductionPackage(canonicalProjectId, productionPackage);
+    if (!saveResult.ok) {
+      const saveErr = saveResult.error || 'Gagal menyimpan production package.';
+      setImageGenerateError(saveErr);
+      showToast(`Gagal save package: ${saveErr}`);
+      return;
+    }
+
     const requestProjectId = canonicalProjectId;
-    const requestItemNo = sourceItem?.no || 1;
-    const requestItemId = sourceItem?.content_item_id;
+    const requestItemNo = sourceItem.no;
+    const requestItemId = sourceItem.content_item_id;
     const key = `${requestItemNo}_${angleId}`;
 
     setImageGeneratingKey(key);
