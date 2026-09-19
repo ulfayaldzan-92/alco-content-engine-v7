@@ -50,8 +50,8 @@ export interface ProductionCandidateValidationResult {
  */
 export function resolveVideoProductionMode(
   id: string
-): 'ugc_video' | 'text_motion' | 'asset_product' {
-  if (!id || typeof id !== 'string') return 'ugc_video';
+): 'ugc_video' | 'text_motion' | 'asset_product' | null {
+  if (!id || typeof id !== 'string') return null;
   const cleanId = id.trim().toUpperCase();
   if (
     cleanId === 'A' ||
@@ -83,7 +83,7 @@ export function resolveVideoProductionMode(
   ) {
     return 'asset_product';
   }
-  return 'ugc_video';
+  return null;
 }
 
 // Forbidden fields that belong strictly to ProductionPackage authority layer (Phase 3B)
@@ -642,7 +642,7 @@ export function buildVideoProductionCandidate(params: {
   candidate_id: string;
   production_mode: 'ugc_video' | 'text_motion' | 'asset_product';
   objective: string;
-  format?: string;
+  format: string;
   hook: string;
   scenes: VideoSceneProductionPlan[];
   voiceover?: string;
@@ -651,7 +651,7 @@ export function buildVideoProductionCandidate(params: {
   motion_direction?: string;
   audio_direction?: string;
   branding?: string;
-  negative_constraints?: string;
+  negative_constraints: string;
   final_prompt: string;
 }): VideoProductionCandidate {
   const totalDuration = params.scenes.reduce((acc, s) => acc + s.duration_seconds, 0);
@@ -665,7 +665,7 @@ export function buildVideoProductionCandidate(params: {
     production_details: {
       objective: params.objective,
       duration_seconds: totalDuration,
-      format: params.format ?? '9:16 Vertical Video (Reels/TikTok/Shorts)',
+      format: params.format,
       hook: params.hook,
       scenes: params.scenes,
       voiceover: combinedVoiceover,
@@ -674,7 +674,7 @@ export function buildVideoProductionCandidate(params: {
       motion_direction: params.motion_direction ?? '',
       audio_direction: params.audio_direction ?? '',
       branding: params.branding ?? '',
-      negative_constraints: params.negative_constraints ?? '',
+      negative_constraints: params.negative_constraints,
     },
     final_prompt: params.final_prompt,
   };

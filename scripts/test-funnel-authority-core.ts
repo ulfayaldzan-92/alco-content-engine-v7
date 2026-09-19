@@ -66,6 +66,7 @@ import {
   buildCanonicalVideoScenePlan,
   resolveVideoProductionMode,
 } from '../lib/production-candidate';
+import { isAuthoritativeProductionOutputSource } from '../lib/production-output-source';
 
 const projectRoot = process.cwd();
 const errors: string[] = [];
@@ -2318,11 +2319,11 @@ const validCarouselCand: CarouselProductionCandidate = {
     slide_count: 5,
     cover_direction: 'Visual editorial cover carousel',
     slides: [
-      { slide_number: 1, role: 'hook', headline: 'Hook 1', visual_direction: 'Vis Dir 1', layout_direction: '4:5 Top' },
-      { slide_number: 2, role: 'problem', headline: 'Problem 2', visual_direction: 'Vis Dir 2', layout_direction: '4:5 Split' },
-      { slide_number: 3, role: 'reframe', headline: 'Reframe 3', visual_direction: 'Vis Dir 3', layout_direction: '4:5 Diagram' },
-      { slide_number: 4, role: 'learn', headline: 'Solution 4', visual_direction: 'Vis Dir 4', layout_direction: '4:5 Steps' },
-      { slide_number: 5, role: 'cta', headline: 'CTA 5', visual_direction: 'Vis Dir 5', layout_direction: '4:5 Card' },
+      { slide_number: 1, role: 'hook', headline: 'Hook 1', body: 'Body 1', visual_direction: 'Vis Dir 1', layout_direction: '4:5 Top' },
+      { slide_number: 2, role: 'problem', headline: 'Problem 2', body: 'Body 2', visual_direction: 'Vis Dir 2', layout_direction: '4:5 Split' },
+      { slide_number: 3, role: 'reframe', headline: 'Reframe 3', body: 'Body 3', visual_direction: 'Vis Dir 3', layout_direction: '4:5 Diagram' },
+      { slide_number: 4, role: 'learn', headline: 'Solution 4', body: 'Body 4', visual_direction: 'Vis Dir 4', layout_direction: '4:5 Steps' },
+      { slide_number: 5, role: 'cta', headline: 'CTA 5', body: 'Body 5', visual_direction: 'Vis Dir 5', layout_direction: '4:5 Card' },
     ],
     visual_continuity: 'Tema visual konsisten 4:5 vertical editorial',
     branding: '',
@@ -2522,8 +2523,12 @@ buildVideoProductionCandidate({
   candidate_id: 'video_purity_test',
   production_mode: 'ugc_video',
   objective: 'Purity objective',
+  format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
   hook: 'Purity hook',
   scenes: validVideoScenes,
+  motion_direction: 'Dynamic smooth motion',
+  audio_direction: 'Clear voiceover',
+  negative_constraints: 'No blurry frames, no low resolution',
   final_prompt: 'Purity prompt',
 });
 assert(
@@ -2549,13 +2554,13 @@ assert(
   'Test P3C-A-15: resolveVideoProductionMode maps Style C strictly to asset_product'
 );
 
-// P3C-A-16: resolveVideoProductionMode handles case-insensitivity, prefixes, and defaults
+// P3C-A-16: resolveVideoProductionMode handles case-insensitivity, prefixes, and fail-closed null
 assert(
   resolveVideoProductionMode('style_a') === 'ugc_video' &&
   resolveVideoProductionMode('Style B (TikTok Loop)') === 'text_motion' &&
   resolveVideoProductionMode('Option C') === 'asset_product' &&
-  resolveVideoProductionMode('unknown_style') === 'ugc_video',
-  'Test P3C-A-16: resolveVideoProductionMode handles case-insensitivity, prefixes, and fallback cleanly'
+  resolveVideoProductionMode('unknown_style') === null,
+  'Test P3C-A-16: resolveVideoProductionMode handles case-insensitivity, prefixes, and fail-closed null'
 );
 
 // P3C-A-17: buildCanonicalVideoScenePlan respects exact raw CTA in TOFU
@@ -2634,7 +2639,7 @@ const invalidRoleCarousel = {
   production_details: {
     ...validCarouselCand.production_details,
     slides: [
-      { slide_number: 1, role: 'invalid_role_xyz' as any, headline: 'H', visual_direction: 'V', layout_direction: 'L' },
+      { slide_number: 1, role: 'invalid_role_xyz' as any, headline: 'H', body: 'B', visual_direction: 'V', layout_direction: 'L' },
       ...validCarouselCand.production_details.slides.slice(1),
     ],
   },
@@ -2695,13 +2700,12 @@ assert(
   'Test P3C-A-26: Candidate containing content_item_id fails validation fail-closed'
 );
 
-// P3C-A-27: Studio page.tsx source audit confirms getInitialDraft does not attach productionCandidate authority
+// P3C-A-27: Studio page.tsx source audit confirms getInitialDraft strictly uses initial_draft provenance
 const studioPageContent = fs.readFileSync(path.join(projectRoot, 'app', 'production-studio', 'page.tsx'), 'utf8');
 assert(
-  studioPageContent.includes('validateAndNormalizeCarouselPlan(JSON.stringify(activeItem.carousel_plan), activeItem, activeContext, false)') &&
-  !studioPageContent.includes('initialPlan.productionCandidate') &&
-  !studioPageContent.includes('vStyles[0].productionCandidate'),
-  'Test P3C-A-27: Production Studio getInitialDraft strictly produces UI previews without authoritative productionCandidate'
+  studioPageContent.includes("isAuthoritativeProductionOutputSource(source)") &&
+  studioPageContent.includes("source: 'initial_draft'"),
+  'Test P3C-A-27: Production Studio page.tsx integrates isAuthoritativeProductionOutputSource provenance check'
 );
 
 // P3C-A-28: Studio page.tsx normalizers accept attachProductionCandidate flag and use resolveVideoProductionMode
@@ -2709,6 +2713,52 @@ assert(
   studioPageContent.includes('attachProductionCandidate: boolean = true') &&
   studioPageContent.includes('resolveVideoProductionMode(id)'),
   'Test P3C-A-28: Production Studio normalizers accept attachProductionCandidate flag and use resolveVideoProductionMode'
+);
+
+// P3C-A-29: Video Candidate missing format fails validation fail-closed
+const missingFormatVideo = {
+  ...validVideoCand,
+  production_details: {
+    ...validVideoCand.production_details,
+    format: '',
+  },
+};
+const p3ca29Val = validateProductionCandidate(missingFormatVideo);
+assert(
+  !p3ca29Val.isValid && p3ca29Val.error?.includes('format'),
+  'Test P3C-A-29: Video candidate with empty format fails validation fail-closed'
+);
+
+// P3C-A-30: resolveVideoProductionMode fail-closed returns null for unknown or invalid mode IDs
+assert(
+  resolveVideoProductionMode('XYZ') === null &&
+  resolveVideoProductionMode('') === null &&
+  resolveVideoProductionMode('invalid_mode') === null,
+  'Test P3C-A-30: resolveVideoProductionMode returns null for unknown or invalid IDs (fail-closed)'
+);
+
+// P3C-A-31: isAuthoritativeProductionOutputSource correctness
+assert(
+  isAuthoritativeProductionOutputSource('stored_output') === true &&
+  isAuthoritativeProductionOutputSource('generated_output') === true &&
+  isAuthoritativeProductionOutputSource('user_edited_output') === true &&
+  isAuthoritativeProductionOutputSource('initial_draft') === false &&
+  isAuthoritativeProductionOutputSource('none') === false,
+  'Test P3C-A-31: isAuthoritativeProductionOutputSource distinguishes authoritative from draft/none sources'
+);
+
+// P3C-A-32: Video Candidate missing negative_constraints fails validation
+const missingNegativeVideo = {
+  ...validVideoCand,
+  production_details: {
+    ...validVideoCand.production_details,
+    negative_constraints: '',
+  },
+};
+const p3ca32Val = validateProductionCandidate(missingNegativeVideo);
+assert(
+  !p3ca32Val.isValid && p3ca32Val.error?.includes('negative_constraints'),
+  'Test P3C-A-32: Video candidate with empty negative_constraints fails validation fail-closed'
 );
 
 // -------------------------------------------------------------
