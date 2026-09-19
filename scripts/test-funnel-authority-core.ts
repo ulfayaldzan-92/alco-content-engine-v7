@@ -1007,6 +1007,7 @@ const validVideoPackage: VideoProductionPackage = {
   strategy_snapshot: buildProductionStrategySnapshot(projectAContext, stratA, itemAVideo),
   content_snapshot: buildProductionContentSnapshot(itemAVideo),
   video: {
+    production_mode: 'human_led',
     objective: 'Demo otomasi release reporting AgileHub',
     duration_seconds: 45,
     format: 'vertical_9_16',
@@ -1014,23 +1015,39 @@ const validVideoPackage: VideoProductionPackage = {
     scenes: [
       {
         scene_number: 1,
-        duration_seconds: 5,
+        duration_seconds: 15,
         purpose: 'hook',
         visual_direction: 'Tech lead closing laptop in frustration at 5 PM',
         action: 'Relatable reaction to tedious manual reporting',
         camera: 'Close-up on clock showing Friday 17:00, panning to tired expression',
         voiceover: 'Berapa jam tim kamu habiskan tiap pekan hanya untuk bikin sprint report?',
         on_screen_text: 'Jumat 17:00 Masih Rekap Manual?',
+        scene_type: 'talking_head',
+        required_assets: [],
       },
       {
         scene_number: 2,
-        duration_seconds: 40,
+        duration_seconds: 15,
         purpose: 'demo_and_cta',
         visual_direction: 'AgileHub screen recording showing 1-click changelog generation',
         action: 'Clicking release button and watching dashboard auto-populate',
         camera: 'Screen capture split with presenter facecam in corner',
         voiceover: 'Dengan AgileHub, seluruh backlog langsung terkompilasi jadi changelog siap rilis dalam 60 detik.',
         on_screen_text: '1-Click Auto Release Report',
+        scene_type: 'product_screen',
+        required_assets: [],
+      },
+      {
+        scene_number: 3,
+        duration_seconds: 15,
+        purpose: 'end_card',
+        visual_direction: 'Closing brand slide with website URL',
+        action: 'Animated URL button pulses',
+        camera: 'Static view',
+        voiceover: 'Kunjungi AgileHub dot co sekarang.',
+        on_screen_text: 'AgileHub.co',
+        scene_type: 'end_card',
+        required_assets: [],
       },
     ],
     voiceover: 'Full script for 45s product walkthrough',
@@ -1210,6 +1227,7 @@ const invalidDurationVidPkg: VideoProductionPackage = {
     scenes: [
       { ...validVideoPackage.video.scenes[0], duration_seconds: 0 },
       validVideoPackage.video.scenes[1],
+      validVideoPackage.video.scenes[2],
     ],
   },
 };
@@ -1227,6 +1245,7 @@ const missingSceneFieldsVidPkg: VideoProductionPackage = {
         visual_direction: '',
       },
       validVideoPackage.video.scenes[1],
+      validVideoPackage.video.scenes[2],
     ],
   },
 };
@@ -1861,7 +1880,7 @@ const engineCtxForChar = buildProductionEngineContext(
 assert(engineCtxForChar.isValid && engineCtxForChar.context !== undefined, 'Engine context valid for character test');
 const adaptedCharCtx = adaptEngineContextToProductionContext(engineCtxForChar.context!);
 assert(
-  adaptedCharCtx.character?.display_name === '' && adaptedCharCtx.character?.display_name !== 'Project Creator Persona',
+  adaptedCharCtx.character?.display_name === '' && (adaptedCharCtx.character?.display_name as string) !== 'Project Creator Persona',
   'Test P3A-23: Character with empty display_name does not invent "Project Creator Persona"'
 );
 
@@ -2010,6 +2029,7 @@ const p3bCarouselInput: ProductionAssetInput = {
 };
 
 const p3bVideoDetails = {
+  production_mode: 'human_led' as const,
   objective: 'Short-form awareness reel',
   duration_seconds: 15,
   format: '9:16 Vertical Reel',
@@ -2017,13 +2037,39 @@ const p3bVideoDetails = {
   scenes: [
     {
       scene_number: 1,
-      duration_seconds: 15,
+      duration_seconds: 5,
       purpose: 'Deliver hook and solution in one continuous sequence',
       visual_direction: 'Creator speaking directly to camera in studio',
       action: 'Pointing to graphical pop-ups on screen',
       camera: 'Selfie angle medium shot',
       voiceover: 'Stop guessing your funnel strategy. Use an authoritative engine.',
       on_screen_text: 'Stop Guessing Strategy',
+      scene_type: 'talking_head' as const,
+      required_assets: [],
+    },
+    {
+      scene_number: 2,
+      duration_seconds: 5,
+      purpose: 'framework',
+      visual_direction: 'Diagram showing steps',
+      action: 'Pointers appear',
+      camera: 'Close up',
+      voiceover: 'Our system takes three concrete steps to generate video outlines.',
+      on_screen_text: 'Three Simple Steps',
+      scene_type: 'product_screen' as const,
+      required_assets: [],
+    },
+    {
+      scene_number: 3,
+      duration_seconds: 5,
+      purpose: 'end_card',
+      visual_direction: 'Simple CTA on off-white screen',
+      action: 'Logo animations',
+      camera: 'Static',
+      voiceover: 'Go to Alco Content Engine now.',
+      on_screen_text: 'Alco.ai',
+      scene_type: 'end_card' as const,
+      required_assets: [],
     },
   ],
   voiceover: 'Stop guessing your funnel strategy. Use an authoritative engine.',
@@ -2156,7 +2202,7 @@ const invalidVideoInput: ProductionAssetInput = {
   video: {
     ...p3bVideoDetails,
     duration_seconds: 0, // Invalid duration
-  },
+  } as any,
 };
 const p3b11Res = buildProductionPackage(p3bEngineCtx, invalidVideoInput, p3bMetadata);
 assert(
@@ -2357,26 +2403,25 @@ assert(
 );
 
 // P3C-A-03: Valid Video Production Candidate in all modes
-const validVideoScenes = buildCanonicalVideoScenePlan('TOFU', {
-  hook: 'Hook video menarik',
-  masalah: 'Masalah konkret audiens',
-  solusi: 'Solusi terarah',
-  cta: 'Simpan video ini',
-});
-
-const videoModes: Array<'ugc_video' | 'text_motion' | 'asset_product'> = [
-  'ugc_video',
-  'text_motion',
-  'asset_product',
+const videoModes: Array<'human_led' | 'product_demo' | 'motion_explainer'> = [
+  'human_led',
+  'product_demo',
+  'motion_explainer',
 ];
 const videoModeResults = videoModes.map((mode) => {
+  const scenes = buildCanonicalVideoScenePlan('TOFU', mode, {
+    hook: 'Hook video menarik',
+    masalah: 'Masalah konkret audiens',
+    solusi: 'Solusi terarah',
+    cta: 'Simpan video ini',
+  });
   const cand = buildVideoProductionCandidate({
     candidate_id: `vid_cand_${mode}`,
     production_mode: mode,
     objective: 'Video awareness terarah',
     format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
     hook: 'Hook video menarik',
-    scenes: validVideoScenes,
+    scenes,
     motion_direction: 'Dynamic smooth motion',
     audio_direction: 'Natural voiceover & background music',
     negative_constraints: 'No blurry video, no distorted faces',
@@ -2386,7 +2431,7 @@ const videoModeResults = videoModes.map((mode) => {
 });
 assert(
   videoModeResults.every((r) => r.isValid && r.error === undefined),
-  'Test P3C-A-03: Valid VideoProductionCandidate passes validation across ugc_video, text_motion, and asset_product modes'
+  'Test P3C-A-03: Valid VideoProductionCandidate passes validation across human_led, product_demo, and motion_explainer modes'
 );
 
 // P3C-A-04: Image Candidate missing required fields fails validation
@@ -2435,8 +2480,8 @@ assert(
 const emptyScenesVideo = {
   candidate_type: 'video',
   candidate_id: 'vid_empty_scenes',
-  production_mode: 'ugc_video',
   production_details: {
+    production_mode: 'human_led',
     objective: 'Video objective',
     duration_seconds: 0,
     format: '9:16 Vertical',
@@ -2509,13 +2554,19 @@ assert(
 );
 
 // P3C-A-11: Video Candidate built via helper conforms to canonical schema
+const testVideoScenes = buildCanonicalVideoScenePlan('TOFU', 'human_led', {
+  hook: 'Video hook',
+  masalah: 'Video masalah',
+  solusi: 'Video solusi',
+  cta: 'Video cta',
+});
 const builtVideoCand = buildVideoProductionCandidate({
   candidate_id: 'video_style_A',
-  production_mode: 'ugc_video',
+  production_mode: 'human_led',
   objective: 'Video goal',
   format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
   hook: 'Video hook',
-  scenes: validVideoScenes,
+  scenes: testVideoScenes,
   motion_direction: 'Fast-paced dynamic',
   audio_direction: 'Upbeat background audio',
   negative_constraints: 'No blurry frames, no low resolution',
@@ -2523,79 +2574,79 @@ const builtVideoCand = buildVideoProductionCandidate({
 });
 const p3ca11Val = validateProductionCandidate(builtVideoCand);
 assert(
-  p3ca11Val.isValid && builtVideoCand.candidate_type === 'video' && builtVideoCand.production_details.scenes.length === 4,
+  p3ca11Val.isValid && builtVideoCand.candidate_type === 'video' && builtVideoCand.production_details.scenes.length === 3,
   'Test P3C-A-11: VideoProductionCandidate built via helper strictly adheres to canonical schema'
 );
 
 // P3C-A-12: Candidate builders do not mutate input arguments (Pure Construction)
-const inputScenesClone = JSON.parse(JSON.stringify(validVideoScenes));
+const inputScenesClone = JSON.parse(JSON.stringify(testVideoScenes));
 buildVideoProductionCandidate({
   candidate_id: 'video_purity_test',
-  production_mode: 'ugc_video',
+  production_mode: 'human_led',
   objective: 'Purity objective',
   format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
   hook: 'Purity hook',
-  scenes: validVideoScenes,
+  scenes: testVideoScenes,
   motion_direction: 'Dynamic smooth motion',
   audio_direction: 'Clear voiceover',
   negative_constraints: 'No blurry frames, no low resolution',
   final_prompt: 'Purity prompt',
 });
 assert(
-  JSON.stringify(validVideoScenes) === JSON.stringify(inputScenesClone),
+  JSON.stringify(testVideoScenes) === JSON.stringify(inputScenesClone),
   'Test P3C-A-12: Candidate builder operates purely without mutating input parameters'
 );
 
-// P3C-A-13: resolveVideoProductionMode maps Style A to ugc_video
+// P3C-A-13: resolveVideoProductionMode maps Style A to human_led
 assert(
-  resolveVideoProductionMode('A') === 'ugc_video',
-  'Test P3C-A-13: resolveVideoProductionMode maps Style A strictly to ugc_video'
+  resolveVideoProductionMode('A') === 'human_led',
+  'Test P3C-A-13: resolveVideoProductionMode maps Style A strictly to human_led'
 );
 
-// P3C-A-14: resolveVideoProductionMode maps Style B to text_motion
+// P3C-A-14: resolveVideoProductionMode maps Style B to motion_explainer
 assert(
-  resolveVideoProductionMode('B') === 'text_motion',
-  'Test P3C-A-14: resolveVideoProductionMode maps Style B strictly to text_motion'
+  resolveVideoProductionMode('B') === 'motion_explainer',
+  'Test P3C-A-14: resolveVideoProductionMode maps Style B strictly to motion_explainer'
 );
 
-// P3C-A-15: resolveVideoProductionMode maps Style C to asset_product
+// P3C-A-15: resolveVideoProductionMode maps Style C to product_demo
 assert(
-  resolveVideoProductionMode('C') === 'asset_product',
-  'Test P3C-A-15: resolveVideoProductionMode maps Style C strictly to asset_product'
+  resolveVideoProductionMode('C') === 'product_demo',
+  'Test P3C-A-15: resolveVideoProductionMode maps Style C strictly to product_demo'
 );
 
 // P3C-A-16: resolveVideoProductionMode handles case-insensitivity, prefixes, and fail-closed null
 assert(
-  resolveVideoProductionMode('style_a') === 'ugc_video' &&
-  resolveVideoProductionMode('Style B (TikTok Loop)') === 'text_motion' &&
-  resolveVideoProductionMode('Option C') === 'asset_product' &&
+  resolveVideoProductionMode('style_a') === 'human_led' &&
+  resolveVideoProductionMode('Style B (TikTok Loop)') === 'motion_explainer' &&
+  resolveVideoProductionMode('Option C') === 'product_demo' &&
   resolveVideoProductionMode('unknown_style') === null,
   'Test P3C-A-16: resolveVideoProductionMode handles case-insensitivity, prefixes, and fail-closed null'
 );
 
 // P3C-A-17: buildCanonicalVideoScenePlan respects exact raw CTA in TOFU
-const tofuScenePlan = buildCanonicalVideoScenePlan('TOFU', {
+const tofuScenePlan = buildCanonicalVideoScenePlan('TOFU', 'human_led', {
   hook: 'Hook TOFU',
   masalah: 'Masalah TOFU',
   solusi: 'Solusi TOFU',
   cta: 'Simpan postingan ini untuk nanti',
 });
 assert(
-  tofuScenePlan[3].on_screen_text.includes('Simpan postingan ini untuk nanti') &&
-  tofuScenePlan[3].voiceover.includes('Simpan postingan ini untuk nanti'),
+  tofuScenePlan[2].on_screen_text.includes('Simpan postingan ini untuk nanti') &&
+  tofuScenePlan[2].voiceover.includes('Simpan postingan ini untuk nanti'),
   'Test P3C-A-17: buildCanonicalVideoScenePlan uses exact provided CTA without inventing text in TOFU'
 );
 
 // P3C-A-18: buildCanonicalVideoScenePlan respects exact raw CTA in BOFU
-const bofuScenePlan = buildCanonicalVideoScenePlan('BOFU', {
+const bofuScenePlan = buildCanonicalVideoScenePlan('BOFU', 'human_led', {
   hook: 'Hook BOFU',
   masalah: 'Masalah BOFU',
   solusi: 'Solusi BOFU',
   cta: 'Daftar sekarang melalui link di bio',
 });
 assert(
-  bofuScenePlan[3].on_screen_text.includes('Daftar sekarang melalui link di bio') &&
-  bofuScenePlan[3].voiceover.includes('Daftar sekarang melalui link di bio'),
+  bofuScenePlan[2].on_screen_text.includes('Daftar sekarang melalui link di bio') &&
+  bofuScenePlan[2].voiceover.includes('Daftar sekarang melalui link di bio'),
   'Test P3C-A-18: buildCanonicalVideoScenePlan uses exact provided CTA without inventing text in BOFU'
 );
 
@@ -2674,10 +2725,30 @@ assert(
   'Test P3C-A-23: Carousel candidate with empty master_prompt fails validation fail-closed'
 );
 
+const validVideoCand = buildVideoProductionCandidate({
+  candidate_id: 'video_style_A',
+  production_mode: 'human_led',
+  objective: 'Video goal',
+  format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
+  hook: 'Video hook',
+  scenes: [
+    { scene_number: 1, duration_seconds: 5, purpose: 'P1', visual_direction: 'V1', action: 'A1', camera: 'C1', voiceover: 'VO1', on_screen_text: 'TXT1', scene_type: 'talking_head', required_assets: [] },
+    { scene_number: 2, duration_seconds: 5, purpose: 'P2', visual_direction: 'V2', action: 'A2', camera: 'C2', voiceover: 'VO2', on_screen_text: 'TXT2', scene_type: 'product_screen', required_assets: [] },
+    { scene_number: 3, duration_seconds: 5, purpose: 'P3', visual_direction: 'V3', action: 'A3', camera: 'C3', voiceover: 'VO3', on_screen_text: 'TXT3', scene_type: 'end_card', required_assets: [] },
+  ],
+  motion_direction: 'Fast-paced dynamic',
+  audio_direction: 'Upbeat background audio',
+  negative_constraints: 'No blurry frames, no low resolution',
+  final_prompt: 'Video prompt',
+});
+
 // P3C-A-24: Candidate validator rejects VideoProductionCandidate with invalid production_mode
 const invalidModeVideo = {
   ...validVideoCand,
-  production_mode: 'unsupported_mode_xyz' as any,
+  production_details: {
+    ...validVideoCand.production_details,
+    production_mode: 'unsupported_mode_xyz' as any,
+  },
 };
 const p3ca24Val = validateProductionCandidate(invalidModeVideo);
 assert(
@@ -2903,8 +2974,8 @@ assert(
   'Test P3C-B-02b: selectProductionCandidate explicitly selects carousel_plan'
 );
 
-// P3C-B-03: Video candidate adapter happy path (ugc_video, text_motion, asset_product -> all asset_type 'video')
-const p3cbVideoModes: Array<'ugc_video' | 'text_motion' | 'asset_product'> = ['ugc_video', 'text_motion', 'asset_product'];
+// P3C-B-03: Video candidate adapter happy path (human_led, product_demo, motion_explainer -> all asset_type 'video')
+const p3cbVideoModes: Array<'human_led' | 'product_demo' | 'motion_explainer'> = ['human_led', 'product_demo', 'motion_explainer'];
 for (const mode of p3cbVideoModes) {
   const videoCand = buildVideoProductionCandidate({
     candidate_id: `video_cand_${mode}`,
@@ -2912,7 +2983,14 @@ for (const mode of p3cbVideoModes) {
     objective: 'Obj',
     format: '9:16',
     hook: 'Hook',
-    scenes: [{ scene_number: 1, duration_seconds: 5, purpose: 'P', visual_direction: 'V', action: 'A', camera: 'C', voiceover: 'VO', on_screen_text: 'TXT' }],
+    scenes: [
+      { scene_number: 1, duration_seconds: 5, purpose: 'P1', visual_direction: 'V1', action: 'A1', camera: 'C1', voiceover: 'VO1', on_screen_text: 'TXT1', scene_type: 'talking_head' as const, required_assets: [] },
+      { scene_number: 2, duration_seconds: 5, purpose: 'P2', visual_direction: 'V2', action: 'A2', camera: 'C2', voiceover: 'VO2', on_screen_text: 'TXT2', scene_type: 'product_screen' as const, required_assets: [] },
+      { scene_number: 3, duration_seconds: 5, purpose: 'P3', visual_direction: 'V3', action: 'A3', camera: 'C3', voiceover: 'VO3', on_screen_text: 'TXT3', scene_type: 'end_card' as const, required_assets: [] },
+    ],
+    camera_direction: 'Static shot',
+    motion_direction: 'Smooth zoom',
+    audio_direction: 'Background track',
     negative_constraints: 'No blur',
     final_prompt: 'Final Prompt Video',
   });
@@ -3017,11 +3095,15 @@ assert(
 
 const sampleVideoCand = buildVideoProductionCandidate({
   candidate_id: 'video_purity_test',
-  production_mode: 'ugc_video',
+  production_mode: 'human_led',
   objective: 'Obj',
   format: '9:16',
   hook: 'Hook',
-  scenes: [{ scene_number: 1, duration_seconds: 5, purpose: 'P', visual_direction: 'V', action: 'A', camera: 'C', voiceover: 'VO', on_screen_text: 'TXT' }],
+  scenes: [
+    { scene_number: 1, duration_seconds: 5, purpose: 'P1', visual_direction: 'V1', action: 'A1', camera: 'C1', voiceover: 'VO1', on_screen_text: 'TXT1', scene_type: 'talking_head', required_assets: [] },
+    { scene_number: 2, duration_seconds: 5, purpose: 'P2', visual_direction: 'V2', action: 'A2', camera: 'C2', voiceover: 'VO2', on_screen_text: 'TXT2', scene_type: 'product_screen', required_assets: [] },
+    { scene_number: 3, duration_seconds: 5, purpose: 'P3', visual_direction: 'V3', action: 'A3', camera: 'C3', voiceover: 'VO3', on_screen_text: 'TXT3', scene_type: 'end_card', required_assets: [] },
+  ],
   negative_constraints: 'No blur',
   final_prompt: 'Final Prompt Video',
 });
@@ -3202,7 +3284,7 @@ const p3daCarouselCandidate = buildCarouselProductionCandidate({
   cover_direction: 'Cover Visual',
   slides: [
     { slide_number: 1, role: 'hook', headline: 'H1', body: 'B1', visual_direction: 'V1', layout_direction: 'L1' },
-    { slide_number: 2, role: 'body', headline: 'H2', body: 'B2', visual_direction: 'V2', layout_direction: 'L2' },
+    { slide_number: 2, role: 'solution', headline: 'H2', body: 'B2', visual_direction: 'V2', layout_direction: 'L2' },
   ],
   visual_continuity: 'Seamless',
   branding: 'Brand Alpha',
@@ -3227,11 +3309,18 @@ assert(
 // P3D-A-03: Valid video candidate -> workflow produces Video ProductionPackage
 const p3daVideoCandidate = buildVideoProductionCandidate({
   candidate_id: 'cand_vid_p3da',
-  production_mode: 'ugc_video',
+  production_mode: 'human_led',
   objective: 'Engagement',
   format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
   hook: 'Stop scrolling',
-  scenes: [{ scene_number: 1, duration_seconds: 5, purpose: 'Hook', visual_direction: 'Direct camera', action: 'Talks', camera: 'Close up', voiceover: 'VO1', on_screen_text: 'TXT1' }],
+  scenes: [
+    { scene_number: 1, duration_seconds: 5, purpose: 'P1', visual_direction: 'V1', action: 'A1', camera: 'C1', voiceover: 'VO1', on_screen_text: 'TXT1', scene_type: 'talking_head' as const, required_assets: [] },
+    { scene_number: 2, duration_seconds: 5, purpose: 'P2', visual_direction: 'V2', action: 'A2', camera: 'C2', voiceover: 'VO2', on_screen_text: 'TXT2', scene_type: 'product_screen' as const, required_assets: [] },
+    { scene_number: 3, duration_seconds: 5, purpose: 'P3', visual_direction: 'V3', action: 'A3', camera: 'C3', voiceover: 'VO3', on_screen_text: 'TXT3', scene_type: 'end_card' as const, required_assets: [] },
+  ],
+  camera_direction: 'Static shot',
+  motion_direction: 'Smooth zoom',
+  audio_direction: 'Background track',
   negative_constraints: 'No blur',
   final_prompt: 'Prompt Video Alpha',
 });

@@ -2311,8 +2311,8 @@ function validateAndNormalizeVideoStyles(
 
       const captionInstruction = String(v.captionInstruction || v.caption_instruction || defaultCaptionInstruction).trim() || defaultCaptionInstruction;
 
-      const scenes = buildCanonicalVideoScenePlan(funnelStage, script);
-      const productionMode = resolveVideoProductionMode(id);
+      const productionMode = resolveVideoProductionMode(id) || 'human_led';
+      const scenes = buildCanonicalVideoScenePlan(funnelStage, productionMode, script);
       const productionCandidate =
         attachProductionCandidate && productionMode
           ? buildVideoProductionCandidate({
@@ -3265,7 +3265,7 @@ export default function ProductionStudioPage() {
     }
     if (!promptText || !promptText.trim() || !!imageGeneratingKey || !canonicalProjectId) return;
 
-    // Strict authority check (NO activeItem fallback)
+    // Strict authority check (NO fallback item)
     if (!sourceItem) {
       setImageGenerateError('Authoritative ContentItem tidak ditemukan (sourceItem null). Production package diblokir.');
       showToast('Gagal: ContentItem tidak valid untuk produksi.');

@@ -131,6 +131,11 @@ export interface CarouselProductionPackage extends ProductionPackageBase {
   final_prompts: CarouselFinalPrompts;
 }
 
+export type VideoProductionMode =
+  | 'human_led'
+  | 'product_demo'
+  | 'motion_explainer';
+
 /**
  * Production details for each scene in a video / UGC asset.
  */
@@ -143,9 +148,17 @@ export interface VideoSceneProductionPlan {
   camera: string;
   voiceover: string;
   on_screen_text: string;
+  scene_type:
+    | 'talking_head'
+    | 'product_screen'
+    | 'graphic_motion'
+    | 'b_roll'
+    | 'end_card';
+  required_assets: string[];
 }
 
 export interface VideoProductionDetails {
+  production_mode: VideoProductionMode;
   objective: string;
   duration_seconds: number;
   format: string;
@@ -563,6 +576,10 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
     if (!vidPkg.video || typeof vidPkg.video !== 'object') {
       return { isValid: false, error: 'Missing video production details in VideoProductionPackage.' };
     }
+    const validVideoModes: VideoProductionMode[] = ['human_led', 'product_demo', 'motion_explainer'];
+    if (!validVideoModes.includes(vidPkg.video.production_mode)) {
+      return { isValid: false, error: `Invalid video.production_mode "${vidPkg.video.production_mode}". Must be human_led, product_demo, or motion_explainer.` };
+    }
     const nonEmptyVideoFields: (keyof VideoProductionDetails)[] = [
       'objective',
       'format',
@@ -631,6 +648,21 @@ export function validateProductionPackage(pkg: any): { isValid: boolean; error?:
         return {
           isValid: false,
           error: `video.scenes[${i}].duration_seconds must be a positive finite number.`,
+        };
+      }
+
+      const validSceneTypes = ['talking_head', 'product_screen', 'graphic_motion', 'b_roll', 'end_card'];
+      if (!validSceneTypes.includes(scene.scene_type)) {
+        return {
+          isValid: false,
+          error: `video.scenes[${i}].scene_type "${scene.scene_type}" is invalid. Must be talking_head, product_screen, graphic_motion, b_roll, or end_card.`,
+        };
+      }
+
+      if (!Array.isArray(scene.required_assets)) {
+        return {
+          isValid: false,
+          error: `video.scenes[${i}].required_assets must be a valid array of strings.`,
         };
       }
 

@@ -621,7 +621,7 @@ export default function HomePageClient() {
         const newHistoryEntry = {
           id: Date.now(),
           timestamp: new Date().toISOString(),
-          topic: coreTopic || sharedContext?.brand_context?.brand_name || 'Peluncuran Produk',
+          topic: coreTopic || sharedContext?.strategy_context?.core_message || 'Peluncuran Produk',
           itemCount: stampedItems.length,
           items: stampedItems,
         };

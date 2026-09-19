@@ -5,6 +5,7 @@ import {
   CarouselFinalPrompts,
   VideoProductionDetails,
   VideoSceneProductionPlan,
+  VideoProductionMode,
 } from './production-contract';
 import { FunnelStage } from './content-contract';
 
@@ -30,7 +31,6 @@ export interface CarouselProductionCandidate {
 export interface VideoProductionCandidate {
   candidate_type: 'video';
   candidate_id: string;
-  production_mode: 'ugc_video' | 'text_motion' | 'asset_product';
   production_details: VideoProductionDetails;
   final_prompt: string;
 }
@@ -50,7 +50,7 @@ export interface ProductionCandidateValidationResult {
  */
 export function resolveVideoProductionMode(
   id: string
-): 'ugc_video' | 'text_motion' | 'asset_product' | null {
+): VideoProductionMode | null {
   if (!id || typeof id !== 'string') return null;
   const cleanId = id.trim().toUpperCase();
   if (
@@ -61,7 +61,7 @@ export function resolveVideoProductionMode(
     cleanId.startsWith('A:') ||
     cleanId.startsWith('A -')
   ) {
-    return 'ugc_video';
+    return 'human_led';
   }
   if (
     cleanId === 'B' ||
@@ -71,7 +71,7 @@ export function resolveVideoProductionMode(
     cleanId.startsWith('B:') ||
     cleanId.startsWith('B -')
   ) {
-    return 'text_motion';
+    return 'motion_explainer';
   }
   if (
     cleanId === 'C' ||
@@ -81,7 +81,7 @@ export function resolveVideoProductionMode(
     cleanId.startsWith('C:') ||
     cleanId.startsWith('C -')
   ) {
-    return 'asset_product';
+    return 'product_demo';
   }
   return null;
 }
@@ -311,12 +311,12 @@ export function validateProductionCandidate(
 
   // VIDEO CANDIDATE VALIDATION
   if (candidateType === 'video') {
-    const validModes = ['ugc_video', 'text_motion', 'asset_product'];
-    const mode = obj.production_mode;
+    const validModes: VideoProductionMode[] = ['human_led', 'product_demo', 'motion_explainer'];
+    const mode = details.production_mode;
     if (!mode || !validModes.includes(mode)) {
       return {
         isValid: false,
-        error: `Invalid production_mode: ${mode}. Must be 'ugc_video', 'text_motion', or 'asset_product'`,
+        error: `Invalid production_mode: ${mode}. Must be 'human_led', 'product_demo', or 'motion_explainer'`,
       };
     }
 
@@ -331,8 +331,8 @@ export function validateProductionCandidate(
     }
 
     const scenes = details.scenes;
-    if (!Array.isArray(scenes) || scenes.length === 0) {
-      return { isValid: false, error: 'scenes must be a non-empty array' };
+    if (!Array.isArray(scenes) || scenes.length !== 3) {
+      return { isValid: false, error: `scenes count (${Array.isArray(scenes) ? scenes.length : 0}) must be exactly 3` };
     }
 
     for (let i = 0; i < scenes.length; i++) {
@@ -349,6 +349,22 @@ export function validateProductionCandidate(
       if (typeof scene.duration_seconds !== 'number' || !Number.isFinite(scene.duration_seconds) || scene.duration_seconds <= 0) {
         return { isValid: false, error: `Scene ${i + 1} has invalid duration_seconds` };
       }
+
+      const validSceneTypes = ['talking_head', 'product_screen', 'graphic_motion', 'b_roll', 'end_card'];
+      if (!validSceneTypes.includes(scene.scene_type)) {
+        return {
+          isValid: false,
+          error: `Scene ${i + 1} has invalid scene_type "${scene.scene_type}". Must be talking_head, product_screen, graphic_motion, b_roll, or end_card.`,
+        };
+      }
+
+      if (!Array.isArray(scene.required_assets)) {
+        return {
+          isValid: false,
+          error: `Scene ${i + 1} required_assets must be a valid array of strings.`,
+        };
+      }
+
       const nonEmptySceneFields: Array<keyof VideoSceneProductionPlan> = [
         'purpose',
         'visual_direction',
@@ -489,6 +505,7 @@ export function buildCarouselProductionCandidate(params: {
  */
 export function buildCanonicalVideoScenePlan(
   funnelStage: FunnelStage,
+  productionMode: VideoProductionMode = 'human_led',
   script?: {
     hook?: string;
     masalah?: string;
@@ -498,49 +515,292 @@ export function buildCanonicalVideoScenePlan(
   }
 ): VideoSceneProductionPlan[] {
   const stage = funnelStage;
-  const voiceoverCta = typeof script?.cta === 'string' ? script.cta : '';
+  const hookText = script?.hook || '';
+  const valueText = script?.solusi || script?.masalah || '';
+  const actionText = script?.cta || '';
 
+  if (productionMode === 'product_demo') {
+    if (stage === 'BOFU') {
+      return [
+        {
+          scene_number: 1,
+          duration_seconds: 5,
+          purpose: 'Proof Hook',
+          visual_direction: 'Menampilkan bukti angka hasil atau dashboard sukses.',
+          action: 'Animasi grafik naik tajam membuktikan efisiensi produk.',
+          camera: 'Slow pan ke atas grafik performa.',
+          voiceover: hookText,
+          on_screen_text: hookText,
+          scene_type: 'product_screen',
+          required_assets: ['product_screenshot'],
+        },
+        {
+          scene_number: 2,
+          duration_seconds: 7,
+          purpose: 'Offer Demo',
+          visual_direction: 'Demonstrasi penawaran spesial di dalam aplikasi.',
+          action: 'Kursor memilih paket berlangganan atau promo diskon.',
+          camera: 'Screen capture jernih.',
+          voiceover: valueText,
+          on_screen_text: valueText,
+          scene_type: 'product_screen',
+          required_assets: ['product_screenshot'],
+        },
+        {
+          scene_number: 3,
+          duration_seconds: 6,
+          purpose: 'Decision CTA',
+          visual_direction: 'Kartu keputusan dengan penawaran terbatas.',
+          action: 'Animasi tombol beli sekarang dan countdown terbatas.',
+          camera: 'Static vertical frame.',
+          voiceover: actionText,
+          on_screen_text: actionText,
+          scene_type: 'end_card',
+          required_assets: ['logo_reference'],
+        },
+      ];
+    }
+    if (stage === 'MOFU') {
+      return [
+        {
+          scene_number: 1,
+          duration_seconds: 5,
+          purpose: 'Specific Problem Hook',
+          visual_direction: 'Menunjukkan diagram atau perbandingan masalah di layar.',
+          action: 'Sorotan merah pada grafik yang menurun atau error.',
+          camera: 'Zoom in dinamis ke area bermasalah.',
+          voiceover: hookText,
+          on_screen_text: hookText,
+          scene_type: 'product_screen',
+          required_assets: ['product_screenshot'],
+        },
+        {
+          scene_number: 2,
+          duration_seconds: 7,
+          purpose: 'Workflow Walkthrough',
+          visual_direction: 'Langkah demi langkah demonstrasi fitur utama.',
+          action: 'Kursor bergerak mengklik fitur dan menghasilkan solusi seketika.',
+          camera: 'Screen tracking mulus dengan efek sorotan.',
+          voiceover: valueText,
+          on_screen_text: valueText,
+          scene_type: 'product_screen',
+          required_assets: ['product_screenshot'],
+        },
+        {
+          scene_number: 3,
+          duration_seconds: 6,
+          purpose: 'Medium CTA',
+          visual_direction: 'Tampilan promo pendaftaran akun gratis.',
+          action: 'Animasi tombol daftar sekarang beserta logo resmi.',
+          camera: 'Static layout vertikal.',
+          voiceover: actionText,
+          on_screen_text: actionText,
+          scene_type: 'end_card',
+          required_assets: ['logo_reference'],
+        },
+      ];
+    }
+    // TOFU Product Demo
+    return [
+      {
+        scene_number: 1,
+        duration_seconds: 5,
+        purpose: 'Curiosity Hook',
+        visual_direction: 'Cuplikan penggunaan produk secara cepat menarik minat.',
+        action: 'Menampilkan interaksi pertama dengan visual produk yang estetik.',
+        camera: 'Panning shoot produk dari samping.',
+        voiceover: hookText,
+        on_screen_text: hookText,
+        scene_type: 'b_roll',
+        required_assets: ['product_screenshot'],
+      },
+      {
+        scene_number: 2,
+        duration_seconds: 7,
+        purpose: 'Product Awareness',
+        visual_direction: 'Tampilan antarmuka produk yang bersih dan modern.',
+        action: 'Zoom otomatis ke bagian fitur utama yang memecahkan masalah.',
+        camera: 'Screencast jernih dengan tracking halus.',
+        voiceover: valueText,
+        on_screen_text: valueText,
+        scene_type: 'product_screen',
+        required_assets: ['product_screenshot'],
+      },
+      {
+        scene_number: 3,
+        duration_seconds: 6,
+        purpose: 'Soft CTA',
+        visual_direction: 'Kartu penutup minimalis dengan logo produk.',
+        action: 'Animasi logo dan petunjuk eksplorasi produk.',
+        camera: 'Static vertical layout.',
+        voiceover: actionText,
+        on_screen_text: actionText,
+        scene_type: 'end_card',
+        required_assets: [],
+      },
+    ];
+  }
+
+  if (productionMode === 'motion_explainer') {
+    if (stage === 'BOFU') {
+      return [
+        {
+          scene_number: 1,
+          duration_seconds: 5,
+          purpose: 'Proof Hook',
+          visual_direction: 'Infografis hasil pencapaian dengan persentase besar.',
+          action: 'Angka persentase bergerak naik (counting up animation).',
+          camera: 'Zoom in terpusat pada angka.',
+          voiceover: hookText,
+          on_screen_text: hookText,
+          scene_type: 'graphic_motion',
+          required_assets: [],
+        },
+        {
+          scene_number: 2,
+          duration_seconds: 7,
+          purpose: 'Process Showcase',
+          visual_direction: 'Visualisasi alur proses penawaran spesial.',
+          action: 'Animasi kotak penawaran terbuka dan mengeluarkan USP.',
+          camera: 'Isometric view motion.',
+          voiceover: valueText,
+          on_screen_text: valueText,
+          scene_type: 'graphic_motion',
+          required_assets: ['brand_visual'],
+        },
+        {
+          scene_number: 3,
+          duration_seconds: 6,
+          purpose: 'Decision CTA',
+          visual_direction: 'Slide penutup dengan instruksi pembelian yang jelas.',
+          action: 'Teks langkah-langkah pembelian muncul dengan efek ketik.',
+          camera: 'Static center frame.',
+          voiceover: actionText,
+          on_screen_text: actionText,
+          scene_type: 'end_card',
+          required_assets: [],
+        },
+      ];
+    }
+    if (stage === 'MOFU') {
+      return [
+        {
+          scene_number: 1,
+          duration_seconds: 5,
+          purpose: 'Insight Hook',
+          visual_direction: 'Grafik masalah dengan animasi pecah atau berguguran.',
+          action: 'Simbol panah menurun patah-patah secara dramatis.',
+          camera: 'Zoom out dinamis.',
+          voiceover: hookText,
+          on_screen_text: hookText,
+          scene_type: 'graphic_motion',
+          required_assets: [],
+        },
+        {
+          scene_number: 2,
+          duration_seconds: 7,
+          purpose: 'Framework Breakdown',
+          visual_direction: 'Animasi diagram 3 langkah atau checklist bergerak.',
+          action: 'Poin framework muncul berurutan diiringi transisi slide.',
+          camera: 'Smooth slider transition.',
+          voiceover: valueText,
+          on_screen_text: valueText,
+          scene_type: 'graphic_motion',
+          required_assets: ['brand_visual'],
+        },
+        {
+          scene_number: 3,
+          duration_seconds: 6,
+          purpose: 'Medium CTA',
+          visual_direction: 'Kartu rangkuman dengan visual ajakan bertindak.',
+          action: 'Checklist selesai beralih menjadi tombol aksi.',
+          camera: 'Static focus.',
+          voiceover: actionText,
+          on_screen_text: actionText,
+          scene_type: 'end_card',
+          required_assets: [],
+        },
+      ];
+    }
+    // TOFU Motion Explainer
+    return [
+      {
+        scene_number: 1,
+        duration_seconds: 5,
+        purpose: 'Visual Hook',
+        visual_direction: 'Tipografi bergerak (motion text) tebal dan warna kontras.',
+        action: 'Teks beranimasi muncul satu per satu dengan cepat.',
+        camera: 'Dynamic transition zoom.',
+        voiceover: hookText,
+        on_screen_text: hookText,
+        scene_type: 'graphic_motion',
+        required_assets: [],
+      },
+      {
+        scene_number: 2,
+        duration_seconds: 7,
+        purpose: 'Concept Awareness',
+        visual_direction: 'Ilustrasi konsep sederhana berupa lingkaran dan panah.',
+        action: 'Animasi elemen grafis berputar menjelaskan relasi.',
+        camera: 'Symmetrical orthographic view.',
+        voiceover: valueText,
+        on_screen_text: valueText,
+        scene_type: 'graphic_motion',
+        required_assets: [],
+      },
+      {
+        scene_number: 3,
+        duration_seconds: 6,
+        purpose: 'Soft CTA',
+        visual_direction: 'Animasi teks ajakan bertindak minimalis.',
+        action: 'Tulisan CTA memudar masuk dari tengah layar.',
+        camera: 'Static vertical alignment.',
+        voiceover: actionText,
+        on_screen_text: actionText,
+        scene_type: 'end_card',
+        required_assets: [],
+      },
+    ];
+  }
+
+  // Fallback / Human Led
   if (stage === 'BOFU') {
     return [
       {
         scene_number: 1,
         duration_seconds: 5,
         purpose: 'Proof Hook',
-        visual_direction: 'Testimonial highlight or metric dashboard card',
-        action: 'Talent tampil percaya diri dan meyakinkan saat menyampaikan bukti hasil.',
-        camera: 'Medium close-up vertikal, tatapan mata langsung ke kamera dengan pencahayaan terang.',
-        voiceover: script?.hook ?? '',
-        on_screen_text: script?.hook ?? '',
+        visual_direction: 'Talent menunjukkan testimonial atau bukti hasil secara meyakinkan.',
+        action: 'Talent tersenyum percaya diri menyampaikan bukti sosial.',
+        camera: 'Close-up vertikal terang.',
+        voiceover: hookText,
+        on_screen_text: hookText,
+        scene_type: 'talking_head',
+        required_assets: ['character'],
       },
       {
         scene_number: 2,
-        duration_seconds: 6,
-        purpose: 'Problem Context',
-        visual_direction: 'Product close-up / before-after demonstration',
-        action: 'Talent menunjukkan gestur menunjuk titik hambatan di layar atau produk.',
-        camera: 'Close-up produk / antarmuka aplikasi dengan gerakan pan perlahan.',
-        voiceover: script?.masalah ?? '',
-        on_screen_text: script?.masalah ?? '',
+        duration_seconds: 7,
+        purpose: 'Offer Benefit',
+        visual_direction: 'Talent merekomendasikan solusi utama dengan mantap.',
+        action: 'Talent memegang produk atau menunjuk penawaran.',
+        camera: 'Medium close-up vertikal.',
+        voiceover: valueText,
+        on_screen_text: valueText,
+        scene_type: 'talking_head',
+        required_assets: ['character'],
       },
       {
         scene_number: 3,
-        duration_seconds: 7,
-        purpose: 'Offer Demo',
-        visual_direction: 'Product feature walkthrough / workflow animation',
-        action: 'Talent tersenyum puas menunjukkan alur eksekusi cepat.',
-        camera: 'Over-the-shoulder shot memperlihatkan kemudahan penggunaan fitur utama.',
-        voiceover: script?.solusi ?? '',
-        on_screen_text: script?.solusi ?? '',
-      },
-      {
-        scene_number: 4,
         duration_seconds: 6,
         purpose: 'Decision CTA',
-        visual_direction: 'Special offer card with call-to-action button highlight',
-        action: 'Talent memberikan gestur menunjuk tombol CTA di layar dengan ramah.',
-        camera: 'Static eye-level shot berpusat pada tombol penawaran dan brand logo.',
-        voiceover: voiceoverCta,
-        on_screen_text: voiceoverCta,
+        visual_direction: 'Talent mengarahkan audiens untuk klik tombol CTA.',
+        action: 'Talent tersenyum memberikan isyarat klik link di bio.',
+        camera: 'Medium shot vertikal.',
+        voiceover: actionText,
+        on_screen_text: actionText,
+        scene_type: 'talking_head',
+        required_assets: ['character'],
       },
     ];
   }
@@ -550,87 +810,79 @@ export function buildCanonicalVideoScenePlan(
       {
         scene_number: 1,
         duration_seconds: 5,
-        purpose: 'Insight Hook',
-        visual_direction: 'Screen capture / diagram highlight with bold text overlay',
-        action: 'Talent terlihat penasaran dan sedikit reflektif saat menganalisis performa.',
-        camera: 'Close-up vertikal, kamera sedikit handheld agar terasa natural.',
-        voiceover: script?.hook ?? '',
-        on_screen_text: script?.hook ?? '',
+        purpose: 'Specific Problem Hook',
+        visual_direction: 'Talent berekspresi serius membahas masalah audiens.',
+        action: 'Talent menatap kamera dengan gestur bertanya.',
+        camera: 'Close-up vertikal.',
+        voiceover: hookText,
+        on_screen_text: hookText,
+        scene_type: 'talking_head',
+        required_assets: ['character'],
       },
       {
         scene_number: 2,
         duration_seconds: 7,
-        purpose: 'Problem Breakdown',
-        visual_direction: 'Side-by-side comparison diagram showing stagnant vs optimized funnel',
-        action: 'Voiceover menjelaskan titik hambatan tanpa pergerakan berlebihan.',
-        camera: 'Screen capture jernih dengan efek zoom halus pada grafik/diagram perbandingan.',
-        voiceover: script?.masalah ?? '',
-        on_screen_text: script?.masalah ?? '',
+        purpose: 'Framework Solution',
+        visual_direction: 'Talent menjelaskan poin-poin framework dengan detail.',
+        action: 'Talent menghitung poin menggunakan jari.',
+        camera: 'Medium close-up vertikal.',
+        voiceover: valueText,
+        on_screen_text: valueText,
+        scene_type: 'talking_head',
+        required_assets: ['character'],
       },
       {
         scene_number: 3,
-        duration_seconds: 8,
-        purpose: 'Framework',
-        visual_direction: 'Step-by-step checklist graphic',
-        action: 'Talent memberikan penekanan verbal pada setiap poin framework.',
-        camera: 'Tampilan vertikal bersih dengan animasi daftar checklist bergerak berurutan.',
-        voiceover: script?.solusi ?? '',
-        on_screen_text: script?.solusi ?? '',
-      },
-      {
-        scene_number: 4,
-        duration_seconds: 5,
-        purpose: 'Checklist CTA',
-        visual_direction: 'Interactive checklist badge with save prompt',
-        action: 'Talent mengajak audiens menyimpan postingan secara ramah.',
-        camera: 'Static vertical layout memperlihatkan ikon simpan dan panduan.',
-        voiceover: voiceoverCta,
-        on_screen_text: voiceoverCta,
+        duration_seconds: 6,
+        purpose: 'Medium CTA',
+        visual_direction: 'Talent mengajak interaksi atau diskusi di kolom komentar.',
+        action: 'Talent melambaikan tangan mengajak berkomentar.',
+        camera: 'Medium shot vertikal.',
+        voiceover: actionText,
+        on_screen_text: actionText,
+        scene_type: 'talking_head',
+        required_assets: ['character'],
       },
     ];
   }
 
-  // Default: TOFU
+  // TOFU Human Led
   return [
     {
       scene_number: 1,
       duration_seconds: 5,
-      purpose: 'Relatable Hook',
-      visual_direction: 'Dynamic energetic opening visual with high contrast text overlay',
-      action: 'Ekspresi ekspresif dan santai memicu rasa penasaran audiens.',
-      camera: 'Medium shot casual vertikal, pencahayaan alami dari jendela.',
-      voiceover: script?.hook ?? '',
-      on_screen_text: script?.hook ?? '',
+      purpose: 'Curiosity Hook',
+      visual_direction: 'Talent berbicara santai ke kamera dengan latar belakang rapi.',
+      action: 'Talent melakukan gerakan tangan pembuka menarik perhatian.',
+      camera: 'Medium close-up vertikal, eye-level.',
+      voiceover: hookText,
+      on_screen_text: hookText,
+      scene_type: 'talking_head',
+      required_assets: ['character'],
     },
     {
       scene_number: 2,
       duration_seconds: 7,
-      purpose: 'Problem Awareness',
-      visual_direction: 'Split screen or visual contrast illustrating the core friction',
-      action: 'Talent menggambarkan rasa kewalahan saat membuat konten sehari-hari.',
-      camera: 'Dynamic split-screen vertikal membandingkan dua situasi.',
-      voiceover: script?.masalah ?? '',
-      on_screen_text: script?.masalah ?? '',
+      purpose: 'Light Insight',
+      visual_direction: 'Talent tersenyum ramah memberikan tips sederhana.',
+      action: 'Talent mengangguk menjelaskan poin utama.',
+      camera: 'Close-up vertikal hangat.',
+      voiceover: valueText,
+      on_screen_text: valueText,
+      scene_type: 'talking_head',
+      required_assets: ['character'],
     },
     {
       scene_number: 3,
-      duration_seconds: 7,
-      purpose: 'Light Insight',
-      visual_direction: 'Clean graphic animation breaking down the single insight',
-      action: 'Talent mengangguk yakin saat memberikan satu solusi sederhana.',
-      camera: 'Close-up hangat dengan kedalaman bidang halus (bokeh).',
-      voiceover: script?.solusi ?? '',
-      on_screen_text: script?.solusi ?? '',
-    },
-    {
-      scene_number: 4,
       duration_seconds: 6,
-      purpose: 'Curiosity CTA',
-      visual_direction: 'CTA screen with bookmark icon animation and brand watermark',
-      action: 'Talent memberikan senyuman hangat dan isyarat menyimpan video.',
-      camera: 'Static vertical frame fokus pada animasi ikon bookmark dan logo.',
-      voiceover: voiceoverCta,
-      on_screen_text: voiceoverCta,
+      purpose: 'Soft CTA',
+      visual_direction: 'Talent memberi isyarat follow/simpan video.',
+      action: 'Talent tersenyum mengarahkan jari ke bawah layar.',
+      camera: 'Medium shot vertikal.',
+      voiceover: actionText,
+      on_screen_text: actionText,
+      scene_type: 'talking_head',
+      required_assets: ['character'],
     },
   ];
 }
@@ -640,7 +892,7 @@ export function buildCanonicalVideoScenePlan(
  */
 export function buildVideoProductionCandidate(params: {
   candidate_id: string;
-  production_mode: 'ugc_video' | 'text_motion' | 'asset_product';
+  production_mode: VideoProductionMode;
   objective: string;
   format: string;
   hook: string;
@@ -661,8 +913,8 @@ export function buildVideoProductionCandidate(params: {
   return {
     candidate_type: 'video',
     candidate_id: params.candidate_id,
-    production_mode: params.production_mode,
     production_details: {
+      production_mode: params.production_mode,
       objective: params.objective,
       duration_seconds: totalDuration,
       format: params.format,
