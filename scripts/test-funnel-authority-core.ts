@@ -70,6 +70,12 @@ import {
   adaptProductionCandidateToAssetInput,
   selectProductionCandidate,
 } from '../lib/production-candidate-adapter';
+import { prepareProductionPackage } from '../lib/production-package-workflow';
+import {
+  saveProductionPackage,
+  loadProductionPackage,
+  removeProductionPackage,
+} from '../lib/production-package-storage';
 import { isAuthoritativeProductionOutputSource } from '../lib/production-output-source';
 
 const projectRoot = process.cwd();
@@ -3038,6 +3044,374 @@ if (imageAdapterRes.ok) {
     );
   }
 }
+
+// ============================================================================
+// PHASE 3D-A: CANONICAL PRODUCTION PACKAGE WORKFLOW & STRICT STORAGE TESTS
+// ============================================================================
+
+const p3daProjectId = 'proj_p3da_123';
+const p3daItemNo = 1;
+const p3daContentItemId = 'item_p3da_001';
+
+const p3daSharedContext: SharedContentContext = {
+  project_id: p3daProjectId,
+  brand_context: { brand_name: 'Brand Alpha', brand_voice: 'Warm' },
+  business_context: { main_offer: 'Core Service', category: 'SaaS', primary_audience: 'Founders', positioning: 'Leader', core_transformation: 'Scale' },
+  content_defaults: { default_cta: 'Sign Up', target_locations: ['Jakarta'] },
+  system_flags: { is_complete_for_planning: true, missing_required_fields: [] },
+};
+
+const p3daStrategy: FunnelStrategy = buildFunnelStrategyFromContext(p3daSharedContext);
+
+const p3daContentItem: ContentItem = {
+  no: p3daItemNo,
+  content_item_id: p3daContentItemId,
+  project_id: p3daProjectId,
+  tanggal: '2026-10-01',
+  hari: 'Monday',
+  channel: 'Instagram',
+  funnel_stage: 'TOFU',
+  strategic_objective: 'Awareness',
+  strategic_rationale: 'Reach new leads',
+  content_format: 'Single Image',
+  headline: 'Headline Alpha',
+  body: 'Body Alpha',
+  caption: 'Caption Alpha',
+  cta: 'Click Link',
+  visual_direction: 'Clean minimalist layout',
+  status: 'planned',
+};
+
+const p3daCharacterDNA: CharacterDNA = {
+  project_id: p3daProjectId,
+  archetype: 'Expert',
+  tone_traits: ['Direct'],
+  communication_style: 'Professional',
+};
+
+const p3daMetadata: ProductionPackageMetadata = {
+  package_id: 'pkg_p3da_999',
+  created_at: '2026-09-18T18:00:00.000Z',
+};
+
+const p3daImageCandidate = buildImageProductionCandidate({
+  candidate_id: 'cand_img_p3da',
+  visualObjective: 'Awareness',
+  scene: 'Studio setup',
+  subject: 'Founder',
+  composition: 'Centered',
+  environment: 'Office',
+  lighting: 'Natural',
+  camera: 'Eye-level',
+  visualStyle: 'Modern',
+  textOverlay: 'Headline Alpha',
+  branding: 'Brand Alpha Logo',
+  negativeConstraints: 'No clutter',
+  finalPrompt: 'Prompt Image Alpha',
+});
+
+// P3D-A-01: Valid image candidate -> workflow produces Image ProductionPackage
+const p3daRes01 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: p3daStrategy,
+  contentItem: p3daContentItem,
+  characterDNA: p3daCharacterDNA,
+  candidates: [p3daImageCandidate],
+  selectedCandidateId: 'cand_img_p3da',
+  metadata: p3daMetadata,
+});
+assert(
+  p3daRes01.ok === true &&
+  p3daRes01.package.asset_type === 'image' &&
+  p3daRes01.package.project_id === p3daProjectId &&
+  p3daRes01.package.content_item_id === p3daContentItemId,
+  'Test P3D-A-01: prepareProductionPackage converts valid image candidate into Image ProductionPackage'
+);
+
+// P3D-A-02: Valid carousel candidate -> workflow produces Carousel ProductionPackage
+const p3daCarouselCandidate = buildCarouselProductionCandidate({
+  candidate_id: 'cand_car_p3da',
+  objective: 'Education',
+  slide_count: 2,
+  cover_direction: 'Cover Visual',
+  slides: [
+    { slide_number: 1, role: 'hook', headline: 'H1', body: 'B1', visual_direction: 'V1', layout_direction: 'L1' },
+    { slide_number: 2, role: 'body', headline: 'H2', body: 'B2', visual_direction: 'V2', layout_direction: 'L2' },
+  ],
+  visual_continuity: 'Seamless',
+  branding: 'Brand Alpha',
+  negative_constraints: 'No noise',
+  final_prompts: { master_prompt: 'Master', slides: [{ slide_number: 1, prompt: 'P1' }, { slide_number: 2, prompt: 'P2' }] },
+});
+const p3daRes02 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: p3daStrategy,
+  contentItem: p3daContentItem,
+  characterDNA: p3daCharacterDNA,
+  candidates: [p3daCarouselCandidate],
+  selectedCandidateId: 'cand_car_p3da',
+  metadata: p3daMetadata,
+});
+assert(
+  p3daRes02.ok === true && p3daRes02.package.asset_type === 'carousel',
+  'Test P3D-A-02: prepareProductionPackage converts valid carousel candidate into Carousel ProductionPackage'
+);
+
+// P3D-A-03: Valid video candidate -> workflow produces Video ProductionPackage
+const p3daVideoCandidate = buildVideoProductionCandidate({
+  candidate_id: 'cand_vid_p3da',
+  production_mode: 'ugc_video',
+  objective: 'Engagement',
+  format: '9:16 Vertical Video (Reels/TikTok/Shorts)',
+  hook: 'Stop scrolling',
+  scenes: [{ scene_number: 1, duration_seconds: 5, purpose: 'Hook', visual_direction: 'Direct camera', action: 'Talks', camera: 'Close up', voiceover: 'VO1', on_screen_text: 'TXT1' }],
+  negative_constraints: 'No blur',
+  final_prompt: 'Prompt Video Alpha',
+});
+const p3daRes03 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: p3daStrategy,
+  contentItem: p3daContentItem,
+  characterDNA: p3daCharacterDNA,
+  candidates: [p3daVideoCandidate],
+  selectedCandidateId: 'cand_vid_p3da',
+  metadata: p3daMetadata,
+});
+assert(
+  p3daRes03.ok === true && p3daRes03.package.asset_type === 'video',
+  'Test P3D-A-03: prepareProductionPackage converts valid video candidate into Video ProductionPackage'
+);
+
+// P3D-A-04: Unknown selectedCandidateId -> fail closed
+const p3daRes04 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: p3daStrategy,
+  contentItem: p3daContentItem,
+  candidates: [p3daImageCandidate],
+  selectedCandidateId: 'unknown_cand',
+  metadata: p3daMetadata,
+});
+assert(
+  p3daRes04.ok === false && p3daRes04.error.includes('not found'),
+  'Test P3D-A-04: Unknown selectedCandidateId fails closed'
+);
+
+// P3D-A-05: Empty selectedCandidateId -> fail closed
+const p3daRes05 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: p3daStrategy,
+  contentItem: p3daContentItem,
+  candidates: [p3daImageCandidate],
+  selectedCandidateId: '   ',
+  metadata: p3daMetadata,
+});
+assert(
+  p3daRes05.ok === false && p3daRes05.error.includes('non-empty string'),
+  'Test P3D-A-05: Empty selectedCandidateId fails closed'
+);
+
+// P3D-A-06: Duplicate candidate ID -> fail closed
+const p3daRes06 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: p3daStrategy,
+  contentItem: p3daContentItem,
+  candidates: [p3daImageCandidate, { ...p3daImageCandidate }],
+  selectedCandidateId: 'cand_img_p3da',
+  metadata: p3daMetadata,
+});
+assert(
+  p3daRes06.ok === false && p3daRes06.error.includes('Duplicate candidate ID'),
+  'Test P3D-A-06: Duplicate candidate ID in candidates fails closed'
+);
+
+// P3D-A-07: Cross-project SharedContentContext -> workflow fails
+const p3daRes07 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: { ...p3daSharedContext, project_id: 'other_proj_id' },
+  funnelStrategy: p3daStrategy,
+  contentItem: p3daContentItem,
+  candidates: [p3daImageCandidate],
+  selectedCandidateId: 'cand_img_p3da',
+  metadata: p3daMetadata,
+});
+assert(
+  p3daRes07.ok === false && p3daRes07.error.includes('Project Identity Mismatch'),
+  'Test P3D-A-07: Cross-project SharedContentContext fails workflow'
+);
+
+// P3D-A-08: Cross-project FunnelStrategy -> workflow fails
+const p3daRes08 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: { ...p3daStrategy, project_id: 'other_proj_id' },
+  contentItem: p3daContentItem,
+  candidates: [p3daImageCandidate],
+  selectedCandidateId: 'cand_img_p3da',
+  metadata: p3daMetadata,
+});
+assert(
+  p3daRes08.ok === false && p3daRes08.error.includes('Project Identity Mismatch'),
+  'Test P3D-A-08: Cross-project FunnelStrategy fails workflow'
+);
+
+// P3D-A-09: Cross-project ContentItem -> workflow fails
+const p3daRes09 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: p3daStrategy,
+  contentItem: { ...p3daContentItem, project_id: 'other_proj_id' },
+  candidates: [p3daImageCandidate],
+  selectedCandidateId: 'cand_img_p3da',
+  metadata: p3daMetadata,
+});
+assert(
+  p3daRes09.ok === false && p3daRes09.error.includes('Project Identity Mismatch'),
+  'Test P3D-A-09: Cross-project ContentItem fails workflow'
+);
+
+// P3D-A-10: Cross-project CharacterDNA -> workflow fails
+const p3daRes10 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: p3daStrategy,
+  contentItem: p3daContentItem,
+  characterDNA: { ...p3daCharacterDNA, project_id: 'other_proj_id' },
+  candidates: [p3daImageCandidate],
+  selectedCandidateId: 'cand_img_p3da',
+  metadata: p3daMetadata,
+});
+assert(
+  p3daRes10.ok === false && p3daRes10.error.includes('CharacterDNA.project_id'),
+  'Test P3D-A-10: Cross-project CharacterDNA fails workflow'
+);
+
+// P3D-A-11: Empty metadata.package_id -> fails
+const p3daRes11 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: p3daStrategy,
+  contentItem: p3daContentItem,
+  candidates: [p3daImageCandidate],
+  selectedCandidateId: 'cand_img_p3da',
+  metadata: { ...p3daMetadata, package_id: '' },
+});
+assert(
+  p3daRes11.ok === false && p3daRes11.error.includes('package_id'),
+  'Test P3D-A-11: Empty metadata.package_id fails workflow'
+);
+
+// P3D-A-12: Empty metadata.created_at -> fails
+const p3daRes12 = prepareProductionPackage({
+  projectId: p3daProjectId,
+  sharedContext: p3daSharedContext,
+  funnelStrategy: p3daStrategy,
+  contentItem: p3daContentItem,
+  candidates: [p3daImageCandidate],
+  selectedCandidateId: 'cand_img_p3da',
+  metadata: { ...p3daMetadata, created_at: '' },
+});
+assert(
+  p3daRes12.ok === false && p3daRes12.error.includes('created_at'),
+  'Test P3D-A-12: Empty metadata.created_at fails workflow'
+);
+
+// P3D-A-13: Workflow output production_status === 'ready_for_production'
+assert(
+  p3daRes01.ok === true && p3daRes01.package.production_status === 'ready_for_production',
+  'Test P3D-A-13: Workflow output has production_status ready_for_production'
+);
+
+// P3D-A-14: Workflow DOES NOT generate package_id itself (matches metadata exactly)
+assert(
+  p3daRes01.ok === true && p3daRes01.package.package_id === p3daMetadata.package_id,
+  'Test P3D-A-14: Output package_id matches input metadata package_id exactly'
+);
+
+// P3D-A-15: Workflow DOES NOT generate created_at itself (matches metadata exactly)
+assert(
+  p3daRes01.ok === true && p3daRes01.package.created_at === p3daMetadata.created_at,
+  'Test P3D-A-15: Output created_at matches input metadata created_at exactly'
+);
+
+// P3D-A-16: Storage valid package can save then load by project_id + content_item_id + asset_type
+if (p3daRes01.ok) {
+  const saveRes = saveProductionPackage(p3daProjectId, p3daRes01.package);
+  assert(saveRes.ok === true, 'Test P3D-A-16a: saveProductionPackage succeeds for valid package');
+
+  const loadedPkg = loadProductionPackage(p3daProjectId, p3daContentItemId, 'image');
+  assert(
+    loadedPkg !== null && loadedPkg.package_id === p3daRes01.package.package_id,
+    'Test P3D-A-16b: loadProductionPackage loads correct saved package'
+  );
+}
+
+// P3D-A-17: Cross-project package cannot be saved to another project
+if (p3daRes01.ok) {
+  const wrongSaveRes = saveProductionPackage('wrong_project_999', p3daRes01.package);
+  assert(
+    wrongSaveRes.ok === false && wrongSaveRes.error?.includes('Project Identity Mismatch'),
+    'Test P3D-A-17: saveProductionPackage rejects cross-project save'
+  );
+}
+
+// P3D-A-18: Load package with different projectId -> reject/null
+const loadDiffProj = loadProductionPackage('other_project_999', p3daContentItemId, 'image');
+assert(loadDiffProj === null, 'Test P3D-A-18: loadProductionPackage returns null for non-matching projectId');
+
+// P3D-A-19: Load package with different contentItemId -> no fallback, returns null
+const loadDiffItem = loadProductionPackage(p3daProjectId, 'item_non_existent', 'image');
+assert(loadDiffItem === null, 'Test P3D-A-19: loadProductionPackage returns null for non-matching contentItemId');
+
+// P3D-A-20: Load package with different assetType -> no fallback, returns null
+const loadDiffAsset = loadProductionPackage(p3daProjectId, p3daContentItemId, 'video');
+assert(loadDiffAsset === null, 'Test P3D-A-20: loadProductionPackage returns null for non-matching assetType');
+
+// P3D-A-21: Stored malformed ProductionPackage -> reject/null
+saveProjectData(p3daProjectId, `production_package_${p3daContentItemId}_carousel`, { malformed: true });
+const loadMalformed = loadProductionPackage(p3daProjectId, p3daContentItemId, 'carousel');
+assert(loadMalformed === null, 'Test P3D-A-21: loadProductionPackage rejects malformed stored payload');
+
+// P3D-A-22: Storage does not alter package identity
+if (p3daRes01.ok) {
+  const reloadedPkg = loadProductionPackage(p3daProjectId, p3daContentItemId, 'image');
+  assert(
+    reloadedPkg !== null &&
+    reloadedPkg.package_id === p3daRes01.package.package_id &&
+    reloadedPkg.project_id === p3daRes01.package.project_id &&
+    reloadedPkg.content_item_id === p3daRes01.package.content_item_id &&
+    reloadedPkg.asset_type === p3daRes01.package.asset_type,
+    'Test P3D-A-22: Storage preserves exact package identity without alteration'
+  );
+}
+
+// P3D-A-23: Remove only deletes exact package key
+const removeSuccess = removeProductionPackage(p3daProjectId, p3daContentItemId, 'image');
+assert(removeSuccess === true, 'Test P3D-A-23a: removeProductionPackage returns true');
+const loadAfterRemove = loadProductionPackage(p3daProjectId, p3daContentItemId, 'image');
+assert(loadAfterRemove === null, 'Test P3D-A-23b: Package is absent after removeProductionPackage');
+
+// P3D-A-24: Workflow source audit: does not use candidates[0] as fallback selection
+const workflowSourceContent = fs.readFileSync(path.join(projectRoot, 'lib', 'production-package-workflow.ts'), 'utf8');
+assert(
+  !workflowSourceContent.includes('candidates[0]') &&
+  !workflowSourceContent.includes('|| candidates[0]') &&
+  !workflowSourceContent.includes('?? candidates[0]'),
+  'Test P3D-A-24: production-package-workflow.ts source does not use candidates[0] fallback pattern'
+);
+
+// P3D-A-25: Workflow source audit: does not use Date.now(), Math.random(), crypto.randomUUID() for metadata generation
+assert(
+  !workflowSourceContent.includes('Date.now()') &&
+  !workflowSourceContent.includes('Math.random()') &&
+  !workflowSourceContent.includes('randomUUID'),
+  'Test P3D-A-25: production-package-workflow.ts source does not generate non-deterministic metadata'
+);
 
 // -------------------------------------------------------------
 // RESULTS SUMMARY
