@@ -1,8 +1,8 @@
 import {
-  ProductionCandidate,
+  type ProductionCandidate,
   validateProductionCandidate,
 } from './production-candidate';
-import { ProductionAssetInput } from './production-engine';
+import type { ProductionAssetInput } from './production-engine';
 
 // ============================================================================
 // PRODUCTION CANDIDATE ADAPTER BOUNDARY (PHASE 3C-B)
@@ -136,12 +136,3 @@ export function selectProductionCandidate(
   return adaptProductionCandidateToAssetInput(matchingCandidates[0]);
 }
 
-/**
- * Specialized explicit selection helper for single Carousel candidate ('carousel_plan').
- */
-export function selectSingleCarouselCandidate(
-  candidates: ProductionCandidate[],
-  selectedCandidateId: string = 'carousel_plan'
-): ProductionCandidateAdapterResult {
-  return selectProductionCandidate(candidates, selectedCandidateId);
-}

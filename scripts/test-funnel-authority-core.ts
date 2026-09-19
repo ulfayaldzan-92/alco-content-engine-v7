@@ -69,7 +69,6 @@ import {
 import {
   adaptProductionCandidateToAssetInput,
   selectProductionCandidate,
-  selectSingleCarouselCandidate,
 } from '../lib/production-candidate-adapter';
 import { isAuthoritativeProductionOutputSource } from '../lib/production-output-source';
 
@@ -2845,33 +2844,35 @@ assert(
 // PHASE 3C-B: ADAPTER & SELECTION BOUNDARY TESTS
 // ============================================================================
 
-// P3C-B-01: Image candidate adapter happy path
-const validImageCand = buildImageProductionCandidate({
-  candidate_id: 'img_cand_1',
-  objective: 'Obj',
+const p3cbImageCandParams = {
+  candidate_id: 'img_cand_p3cb',
+  visualObjective: 'Obj',
   scene: 'Scene',
   subject: 'Subj',
   composition: 'Comp',
   environment: 'Env',
   lighting: 'Light',
-  camera_direction: 'Cam',
-  visual_style: 'Style',
-  text_overlay: '',
+  camera: 'Cam',
+  visualStyle: 'Style',
+  textOverlay: '',
   branding: '',
-  negative_constraints: 'No blur',
-  final_prompt: 'Final Prompt Image',
-});
-const imageAdapterRes = adaptProductionCandidateToAssetInput(validImageCand);
+  negativeConstraints: 'No blur',
+  finalPrompt: 'Final Prompt Image',
+};
+
+// P3C-B-01: Image candidate adapter happy path
+const p3cbImageCand = buildImageProductionCandidate(p3cbImageCandParams);
+const imageAdapterRes = adaptProductionCandidateToAssetInput(p3cbImageCand);
 assert(
   imageAdapterRes.ok === true &&
   imageAdapterRes.assetInput.asset_type === 'image' &&
-  imageAdapterRes.assetInput.image === validImageCand.production_details &&
+  imageAdapterRes.assetInput.image === p3cbImageCand.production_details &&
   imageAdapterRes.assetInput.final_prompt === 'Final Prompt Image',
   'Test P3C-B-01: Image candidate converts to ProductionAssetInput accurately'
 );
 
-// P3C-B-02: Carousel candidate adapter happy path
-const validCarouselCand = buildCarouselProductionCandidate({
+// P3C-B-02: Carousel candidate adapter happy path & explicit selection
+const p3cbCarouselCand = buildCarouselProductionCandidate({
   candidate_id: 'carousel_plan',
   objective: 'Obj',
   slide_count: 1,
@@ -2882,18 +2883,23 @@ const validCarouselCand = buildCarouselProductionCandidate({
   negative_constraints: 'No blur',
   final_prompts: { master_prompt: 'M', slides: [{ slide_number: 1, prompt: 'P' }] },
 });
-const carouselAdapterRes = adaptProductionCandidateToAssetInput(validCarouselCand);
+const carouselAdapterRes = adaptProductionCandidateToAssetInput(p3cbCarouselCand);
 assert(
   carouselAdapterRes.ok === true &&
   carouselAdapterRes.assetInput.asset_type === 'carousel' &&
-  carouselAdapterRes.assetInput.carousel === validCarouselCand.production_details &&
-  carouselAdapterRes.assetInput.final_prompts === validCarouselCand.final_prompts,
-  'Test P3C-B-02: Carousel candidate converts to ProductionAssetInput accurately'
+  carouselAdapterRes.assetInput.carousel === p3cbCarouselCand.production_details &&
+  carouselAdapterRes.assetInput.final_prompts === p3cbCarouselCand.final_prompts,
+  'Test P3C-B-02a: Carousel candidate converts to ProductionAssetInput accurately'
+);
+const carouselSelectRes = selectProductionCandidate([p3cbCarouselCand], 'carousel_plan');
+assert(
+  carouselSelectRes.ok === true && carouselSelectRes.assetInput.asset_type === 'carousel',
+  'Test P3C-B-02b: selectProductionCandidate explicitly selects carousel_plan'
 );
 
 // P3C-B-03: Video candidate adapter happy path (ugc_video, text_motion, asset_product -> all asset_type 'video')
-const videoModes: Array<'ugc_video' | 'text_motion' | 'asset_product'> = ['ugc_video', 'text_motion', 'asset_product'];
-for (const mode of videoModes) {
+const p3cbVideoModes: Array<'ugc_video' | 'text_motion' | 'asset_product'> = ['ugc_video', 'text_motion', 'asset_product'];
+for (const mode of p3cbVideoModes) {
   const videoCand = buildVideoProductionCandidate({
     candidate_id: `video_cand_${mode}`,
     production_mode: mode,
@@ -2915,59 +2921,63 @@ for (const mode of videoModes) {
 }
 
 // P3C-B-04: Invalid candidate fails adaptation without repair
-const invalidImageCand = {
-  ...validImageCand,
-  production_details: { ...validImageCand.production_details, objective: '' },
+const p3cbInvalidImageCand = {
+  ...p3cbImageCand,
+  production_details: { ...p3cbImageCand.production_details, objective: '' },
 };
-const invalidAdapterRes = adaptProductionCandidateToAssetInput(invalidImageCand as any);
+const invalidAdapterRes = adaptProductionCandidateToAssetInput(p3cbInvalidImageCand as any);
 assert(
   invalidAdapterRes.ok === false && invalidAdapterRes.error !== undefined,
   'Test P3C-B-04: Invalid candidate fails adaptation fail-closed'
 );
 
-// P3C-B-05: Authority field leak fails adaptation
-const authorityLeakingCand = {
-  ...validImageCand,
-  project_id: 'proj_123',
-};
-const leakAdapterRes = adaptProductionCandidateToAssetInput(authorityLeakingCand as any);
-assert(
-  leakAdapterRes.ok === false && leakAdapterRes.error?.includes('authoritative package field'),
-  'Test P3C-B-05: Candidate leaking authority field fails adaptation fail-closed'
-);
+// P3C-B-05: Authority field leak fails adaptation for each forbidden field individually
+const forbiddenFieldsToTest = ['project_id', 'content_item_id', 'package_id', 'strategy_snapshot'];
+for (const forbiddenField of forbiddenFieldsToTest) {
+  const leakingCand = {
+    ...p3cbImageCand,
+    [forbiddenField]: 'leaked_value',
+  };
+  const leakRes = adaptProductionCandidateToAssetInput(leakingCand as any);
+  assert(
+    leakRes.ok === false && leakRes.error?.includes('authoritative package field'),
+    `Test P3C-B-05 (${forbiddenField}): Candidate leaking ${forbiddenField} fails adaptation fail-closed`
+  );
+}
 
-// P3C-B-06: Explicit selection selects correct candidate by ID
-const candidatesList: ProductionCandidate[] = [
-  { ...validImageCand, candidate_id: 'option_a' },
-  { ...validImageCand, candidate_id: 'option_b' },
-  { ...validImageCand, candidate_id: 'option_c' },
-];
-const selectedRes = selectProductionCandidate(candidatesList, 'option_b');
+// P3C-B-06: Explicit selection selects correct candidate by ID proving distinct output selection
+const candA = buildImageProductionCandidate({ ...p3cbImageCandParams, candidate_id: 'option_a', finalPrompt: 'PROMPT_A' });
+const candB = buildImageProductionCandidate({ ...p3cbImageCandParams, candidate_id: 'option_b', finalPrompt: 'PROMPT_B' });
+const candC = buildImageProductionCandidate({ ...p3cbImageCandParams, candidate_id: 'option_c', finalPrompt: 'PROMPT_C' });
+const p3cbCandidatesList = [candA, candB, candC];
+const selectedRes = selectProductionCandidate(p3cbCandidatesList, 'option_b');
 assert(
-  selectedRes.ok === true && selectedRes.assetInput.asset_type === 'image',
-  'Test P3C-B-06: selectProductionCandidate explicitly selects candidate B'
+  selectedRes.ok === true &&
+  selectedRes.assetInput.asset_type === 'image' &&
+  selectedRes.assetInput.final_prompt === 'PROMPT_B',
+  'Test P3C-B-06: selectProductionCandidate explicitly selects candidate B with PROMPT_B'
 );
 
 // P3C-B-07: Unknown selectedCandidateId fails
-const unknownIdRes = selectProductionCandidate(candidatesList, 'option_unknown');
+const unknownIdRes = selectProductionCandidate(p3cbCandidatesList, 'option_unknown');
 assert(
   unknownIdRes.ok === false && unknownIdRes.error?.includes('not found'),
   'Test P3C-B-07: selectProductionCandidate fails when selectedCandidateId is unknown'
 );
 
 // P3C-B-08: Empty selectedCandidateId fails
-const emptyIdRes = selectProductionCandidate(candidatesList, '   ');
+const emptyIdRes = selectProductionCandidate(p3cbCandidatesList, '   ');
 assert(
   emptyIdRes.ok === false && emptyIdRes.error?.includes('non-empty string'),
   'Test P3C-B-08: selectProductionCandidate fails when selectedCandidateId is empty'
 );
 
-// P3C-B-09: Duplicate candidate IDs in array fail
+// P3C-B-09: Duplicate candidate IDs in array fail even if valid
 const duplicateCandidatesList: ProductionCandidate[] = [
-  { ...validImageCand, candidate_id: 'option_dup' },
-  { ...validImageCand, candidate_id: 'option_dup' },
+  candA,
+  { ...candA },
 ];
-const duplicateIdRes = selectProductionCandidate(duplicateCandidatesList, 'option_dup');
+const duplicateIdRes = selectProductionCandidate(duplicateCandidatesList, 'option_a');
 assert(
   duplicateIdRes.ok === false && duplicateIdRes.error?.includes('Duplicate candidate ID'),
   'Test P3C-B-09: selectProductionCandidate fails when duplicate candidate IDs exist'
@@ -2976,17 +2986,45 @@ assert(
 // P3C-B-10: Adapter source audit confirms no candidates[0] fallback pattern
 const adapterSourceContent = fs.readFileSync(path.join(projectRoot, 'lib', 'production-candidate-adapter.ts'), 'utf8');
 assert(
-  !adapterSourceContent.includes('candidates[0]') && !adapterSourceContent.includes('find(') || !adapterSourceContent.includes('|| candidates[0]'),
+  !adapterSourceContent.includes('candidates[0]') &&
+  !adapterSourceContent.includes('|| candidates[0]') &&
+  !adapterSourceContent.includes('?? candidates[0]'),
   'Test P3C-B-10: production-candidate-adapter.ts source does not use candidates[0] fallback pattern'
 );
 
-// P3C-B-11: Adapter function is pure and does not mutate candidate input
-const candidateCloneBefore = JSON.parse(JSON.stringify(validImageCand));
-adaptProductionCandidateToAssetInput(validImageCand);
-const candidateCloneAfter = JSON.parse(JSON.stringify(validImageCand));
+// P3C-B-11: Adapter function is pure and does not mutate Image, Carousel, or Video candidate inputs
+const imgBefore = JSON.parse(JSON.stringify(p3cbImageCand));
+adaptProductionCandidateToAssetInput(p3cbImageCand);
+const imgAfter = JSON.parse(JSON.stringify(p3cbImageCand));
 assert(
-  JSON.stringify(candidateCloneBefore) === JSON.stringify(candidateCloneAfter),
-  'Test P3C-B-11: adaptProductionCandidateToAssetInput does not mutate candidate input object'
+  JSON.stringify(imgBefore) === JSON.stringify(imgAfter),
+  'Test P3C-B-11a: adaptProductionCandidateToAssetInput does not mutate Image candidate'
+);
+
+const carBefore = JSON.parse(JSON.stringify(p3cbCarouselCand));
+adaptProductionCandidateToAssetInput(p3cbCarouselCand);
+const carAfter = JSON.parse(JSON.stringify(p3cbCarouselCand));
+assert(
+  JSON.stringify(carBefore) === JSON.stringify(carAfter),
+  'Test P3C-B-11b: adaptProductionCandidateToAssetInput does not mutate Carousel candidate'
+);
+
+const sampleVideoCand = buildVideoProductionCandidate({
+  candidate_id: 'video_purity_test',
+  production_mode: 'ugc_video',
+  objective: 'Obj',
+  format: '9:16',
+  hook: 'Hook',
+  scenes: [{ scene_number: 1, duration_seconds: 5, purpose: 'P', visual_direction: 'V', action: 'A', camera: 'C', voiceover: 'VO', on_screen_text: 'TXT' }],
+  negative_constraints: 'No blur',
+  final_prompt: 'Final Prompt Video',
+});
+const vidBefore = JSON.parse(JSON.stringify(sampleVideoCand));
+adaptProductionCandidateToAssetInput(sampleVideoCand);
+const vidAfter = JSON.parse(JSON.stringify(sampleVideoCand));
+assert(
+  JSON.stringify(vidBefore) === JSON.stringify(vidAfter),
+  'Test P3C-B-11c: adaptProductionCandidateToAssetInput does not mutate Video candidate'
 );
 
 // P3C-B-12: Output assetInput does not contain package authority fields
